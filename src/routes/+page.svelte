@@ -1,156 +1,271 @@
 <script lang="ts">
-  import { invoke } from "@tauri-apps/api/core";
+  import { onMount } from "svelte";
+  import ExportPanel from "$lib/components/ExportPanel.svelte";
+  import MissingDeps from "$lib/components/MissingDeps.svelte";
+  import StatusLine from "$lib/components/StatusLine.svelte";
+  import UrlBar from "$lib/components/UrlBar.svelte";
+  import {
+    checkDeps,
+    defaultSaveDir,
+    fetchMetadata,
+    loadSettings,
+    resolvePreview,
+  } from "$lib/tauri";
+  import { formatTimestamp } from "$lib/time";
+  import type { AppSettings, DepsStatus, PreviewResult, VideoMeta } from "$lib/types";
+  import { isYouTubeUrl } from "$lib/youtube";
 
-  let name = $state("");
-  let greetMsg = $state("");
+  let deps = $state<DepsStatus | null>(null);
+  let checkingDeps = $state(true);
 
-  async function greet(event: Event) {
-    event.preventDefault();
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    greetMsg = await invoke("greet", { name });
+  let url = $state("");
+  let meta = $state<VideoMeta | null>(null);
+  let preview = $state<PreviewResult | null>(null);
+  let status = $state("Paste a YouTube URL and click Fetch");
+  let error = $state<string | null>(null);
+  let busy = $state(false);
+
+  let inPoint = $state(0);
+  let outPoint = $state(0);
+  let maxHeight = $state<number | null>(1080);
+  let includeAudio = $state(true);
+  let savePath = $state("");
+
+  const depsOk = $derived(!!deps && deps.ytdlp && deps.ffmpeg);
+  const duration = $derived(meta?.duration_secs ?? 0);
+  const canExport = $derived(
+    !!meta && !!preview && outPoint > inPoint && savePath.trim().length > 0 && !busy,
+  );
+
+  async function refreshDeps() {
+    checkingDeps = true;
+    error = null;
+    try {
+      deps = await checkDeps();
+    } catch (e) {
+      deps = { ytdlp: false, ffmpeg: false, ytdlp_path: null, ffmpeg_path: null };
+      error = e instanceof Error ? e.message : String(e);
+    } finally {
+      checkingDeps = false;
+    }
   }
+
+  async function initSettings() {
+    try {
+      const settings: AppSettings = await loadSettings();
+      maxHeight = settings.max_height;
+      includeAudio = settings.include_audio;
+      if (settings.last_save_dir) {
+        savePath = settings.last_save_dir;
+      } else {
+        savePath = await defaultSaveDir();
+      }
+    } catch {
+      try {
+        savePath = await defaultSaveDir();
+      } catch {
+        savePath = "";
+      }
+    }
+  }
+
+  async function onFetch() {
+    error = null;
+    const trimmed = url.trim();
+
+    if (!isYouTubeUrl(trimmed)) {
+      error = "Enter a valid YouTube URL";
+      status = "Idle";
+      return;
+    }
+
+    busy = true;
+    meta = null;
+    preview = null;
+    inPoint = 0;
+    outPoint = 0;
+
+    try {
+      status = "Fetching metadata…";
+      meta = await fetchMetadata(trimmed);
+
+      status = "Resolving preview…";
+      preview = await resolvePreview(trimmed);
+
+      inPoint = 0;
+      outPoint = meta.duration_secs;
+
+      if (preview.note) {
+        status = `Ready — ${preview.note}`;
+      } else {
+        status = "Ready";
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      error = msg;
+      status = "Error";
+      meta = null;
+      preview = null;
+      inPoint = 0;
+      outPoint = 0;
+    } finally {
+      busy = false;
+    }
+  }
+
+  onMount(() => {
+    void (async () => {
+      await refreshDeps();
+      if (deps && deps.ytdlp && deps.ffmpeg) {
+        await initSettings();
+      }
+    })();
+  });
 </script>
 
-<main class="container">
-  <h1>Welcome to Tauri + Svelte</h1>
+{#if checkingDeps && !deps}
+  <div class="boot">Checking tools…</div>
+{:else if deps && !depsOk}
+  <MissingDeps
+    {deps}
+    onRecheck={() => {
+      void (async () => {
+        await refreshDeps();
+        if (deps && deps.ytdlp && deps.ffmpeg) {
+          await initSettings();
+        }
+      })();
+    }}
+  />
+{:else}
+  <div class="app">
+    <header class="top">
+      <UrlBar bind:url {busy} onFetch={onFetch} />
+      <StatusLine
+        {status}
+        {error}
+        title={meta?.title ?? null}
+        durationLabel={meta ? formatTimestamp(meta.duration_secs) : null}
+      />
+    </header>
 
-  <div class="row">
-    <a href="https://vite.dev" target="_blank">
-      <img src="/vite.svg" class="logo vite" alt="Vite Logo" />
-    </a>
-    <a href="https://tauri.app" target="_blank">
-      <img src="/tauri.svg" class="logo tauri" alt="Tauri Logo" />
-    </a>
-    <a href="https://svelte.dev" target="_blank">
-      <img src="/svelte.svg" class="logo svelte-kit" alt="SvelteKit Logo" />
-    </a>
+    <div class="main">
+      <section class="preview" aria-label="Video preview">
+        {#if preview}
+          <!-- Placeholder until Task 9 wires the real player -->
+          <div class="preview-placeholder ready">
+            <p>Preview ready ({preview.mode})</p>
+            <p class="preview-src" title={preview.url_or_path}>{preview.url_or_path}</p>
+            <video controls={false} preload="none" aria-hidden="true"></video>
+          </div>
+        {:else}
+          <div class="preview-placeholder">
+            <p>Video preview</p>
+            <p class="muted">Fetch a URL to load a preview</p>
+          </div>
+        {/if}
+      </section>
+
+      <ExportPanel
+        {inPoint}
+        {outPoint}
+        {duration}
+        bind:maxHeight
+        bind:includeAudio
+        bind:savePath
+        {canExport}
+      />
+    </div>
+
+    <footer class="timeline-placeholder" aria-label="Timeline">
+      <span class="muted">Timeline (Task 9)</span>
+    </footer>
   </div>
-  <p>Click on the Tauri, Vite, and SvelteKit logos to learn more.</p>
-
-  <form class="row" onsubmit={greet}>
-    <input id="greet-input" placeholder="Enter a name..." bind:value={name} />
-    <button type="submit">Greet</button>
-  </form>
-  <p>{greetMsg}</p>
-</main>
+{/if}
 
 <style>
-.logo.vite:hover {
-  filter: drop-shadow(0 0 2em #747bff);
-}
-
-.logo.svelte-kit:hover {
-  filter: drop-shadow(0 0 2em #ff3e00);
-}
-
-:root {
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
-  font-size: 16px;
-  line-height: 24px;
-  font-weight: 400;
-
-  color: #0f0f0f;
-  background-color: #f6f6f6;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
-}
-
-.container {
-  margin: 0;
-  padding-top: 10vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  text-align: center;
-}
-
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: 0.75s;
-}
-
-.logo.tauri:hover {
-  filter: drop-shadow(0 0 2em #24c8db);
-}
-
-.row {
-  display: flex;
-  justify-content: center;
-}
-
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-
-a:hover {
-  color: #535bf2;
-}
-
-h1 {
-  text-align: center;
-}
-
-input,
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  color: #0f0f0f;
-  background-color: #ffffff;
-  transition: border-color 0.25s;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
-}
-
-button {
-  cursor: pointer;
-}
-
-button:hover {
-  border-color: #396cd8;
-}
-button:active {
-  border-color: #396cd8;
-  background-color: #e8e8e8;
-}
-
-input,
-button {
-  outline: none;
-}
-
-#greet-input {
-  margin-right: 5px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: #f6f6f6;
-    background-color: #2f2f2f;
+  .boot {
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    color: var(--muted);
   }
 
-  a:hover {
-    color: #24c8db;
+  .app {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem 1.25rem 1.25rem;
+    max-width: 1100px;
+    margin: 0 auto;
   }
 
-  input,
-  button {
-    color: #ffffff;
-    background-color: #0f0f0f98;
+  .top {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
   }
-  button:active {
-    background-color: #0f0f0f69;
-  }
-}
 
+  .main {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(220px, 0.9fr);
+    gap: 0.75rem;
+    flex: 1;
+    min-height: 280px;
+  }
+
+  .preview {
+    min-height: 240px;
+  }
+
+  .preview-placeholder {
+    height: 100%;
+    min-height: 240px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem;
+    text-align: center;
+  }
+
+  .preview-placeholder.ready {
+    align-items: stretch;
+  }
+
+  .preview-placeholder video {
+    display: none;
+  }
+
+  .preview-src {
+    margin: 0;
+    font-size: 0.75rem;
+    color: var(--muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .muted {
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  .timeline-placeholder {
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
+    text-align: center;
+  }
+
+  @media (max-width: 720px) {
+    .main {
+      grid-template-columns: 1fr;
+    }
+  }
 </style>
