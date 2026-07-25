@@ -1,6 +1,19 @@
+# Worktree / tooling
 .worktrees/
 .superpowers/
+.DS_Store
+
+# JS / frontend
 node_modules/
 dist/
+/build
+/.svelte-kit
+/package
+.env
+.env.*
+!.env.example
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# Rust / Tauri
 src-tauri/target/
-.DS_Store
