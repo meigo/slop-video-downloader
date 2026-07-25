@@ -2,11 +2,13 @@
 mod deps;
 mod export;
 pub mod filename;
+mod settings;
 pub mod youtube;
 mod ytdlp;
 
 use deps::check_deps;
 use export::export_clip;
+use settings::{default_save_dir, load_settings, save_settings};
 use ytdlp::{fetch_metadata, resolve_preview};
 
 #[tauri::command]
@@ -23,7 +25,10 @@ pub fn run() {
             check_deps,
             fetch_metadata,
             resolve_preview,
-            export_clip
+            export_clip,
+            load_settings,
+            save_settings,
+            default_save_dir
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

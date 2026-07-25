@@ -29,3 +29,9 @@ export type ExportOpts = {
 };
 
 export type ExportResult = { output_path: string };
+
+export type AppSettings = {
+  last_save_dir: string | null;
+  max_height: number | null; // null = source
+  include_audio: boolean;
+};
