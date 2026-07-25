@@ -41,6 +41,7 @@
 
   let player = $state<ReturnType<typeof VideoPlayer> | null>(null);
   let loopSelection = $state(false);
+  let playerPlaying = $state(false);
   let forceFileFallbackBusy = $state(false);
 
   const depsOk = $derived(!!deps && deps.ytdlp && deps.ffmpeg);
@@ -174,12 +175,32 @@
     player?.seek(t);
   }
 
+  function onPlayPause() {
+    if (loopSelection && player && !player.isPaused()) {
+      loopSelection = false;
+      player.pause();
+      return;
+    }
+    loopSelection = false;
+    player?.togglePlay();
+  }
+
+  function onStop() {
+    loopSelection = false;
+    player?.pause();
+    onSeek(0);
+  }
+
   function onPlaySelection() {
     if (!(outPoint > inPoint)) return;
     loopSelection = true;
     player?.seek(inPoint);
     currentTime = inPoint;
     player?.play();
+  }
+
+  function onPlayState(playing: boolean) {
+    playerPlaying = playing;
   }
 
   // Loop playhead between in/out while "Play selection" is active.
@@ -201,13 +222,7 @@
 
     if (event.key === " " || event.code === "Space") {
       event.preventDefault();
-      if (loopSelection && player && !player.isPaused()) {
-        loopSelection = false;
-        player.pause();
-      } else {
-        loopSelection = false;
-        player?.togglePlay();
-      }
+      onPlayPause();
       return;
     }
 
@@ -331,6 +346,7 @@
             mode={preview.mode}
             bind:currentTime
             onError={onPreviewError}
+            onPlayState={onPlayState}
           />
         {:else}
           <div class="preview-placeholder">
@@ -358,9 +374,12 @@
       bind:currentTime
       bind:inPoint
       bind:outPoint
+      playing={playerPlaying}
       onSeek={onSeek}
       onSetIn={setInFromPlayhead}
       onSetOut={setOutFromPlayhead}
+      onPlayPause={onPlayPause}
+      onStop={onStop}
       onPlaySelection={onPlaySelection}
     />
   </div>

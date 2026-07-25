@@ -6,9 +6,13 @@
     currentTime: number;
     inPoint: number;
     outPoint: number;
+    /** Whether the main player is currently playing (for button label). */
+    playing?: boolean;
     onSeek?: (t: number) => void;
     onSetIn?: () => void;
     onSetOut?: () => void;
+    onPlayPause?: () => void;
+    onStop?: () => void;
     onPlaySelection?: () => void;
     onInOutChange?: (inPoint: number, outPoint: number) => void;
   }
@@ -18,9 +22,12 @@
     currentTime = $bindable(),
     inPoint = $bindable(),
     outPoint = $bindable(),
+    playing = false,
     onSeek,
     onSetIn,
     onSetOut,
+    onPlayPause,
+    onStop,
     onPlaySelection,
     onInOutChange,
   }: Props = $props();
@@ -138,11 +145,39 @@
   </div>
 
   <div class="actions">
-    <button type="button" class="secondary" onclick={() => onSetIn?.()}>Set In</button>
-    <button type="button" class="secondary" onclick={() => onSetOut?.()}>Set Out</button>
-    <button type="button" class="secondary" onclick={() => onPlaySelection?.()}>
-      Play selection
-    </button>
+    <div class="transport">
+      <button
+        type="button"
+        class="secondary play"
+        disabled={!(duration > 0)}
+        title={playing ? "Pause (Space)" : "Play (Space)"}
+        onclick={() => onPlayPause?.()}
+      >
+        {playing ? "Pause" : "Play"}
+      </button>
+      <button
+        type="button"
+        class="secondary"
+        disabled={!(duration > 0)}
+        title="Stop and return to start"
+        onclick={() => onStop?.()}
+      >
+        Stop
+      </button>
+      <button
+        type="button"
+        class="secondary"
+        disabled={!(outPoint > inPoint)}
+        title="Loop play between in and out"
+        onclick={() => onPlaySelection?.()}
+      >
+        Play selection
+      </button>
+    </div>
+    <div class="markers">
+      <button type="button" class="secondary" onclick={() => onSetIn?.()}>Set In (I)</button>
+      <button type="button" class="secondary" onclick={() => onSetOut?.()}>Set Out (O)</button>
+    </div>
   </div>
 </footer>
 
@@ -248,6 +283,15 @@
   .actions {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .transport,
+  .markers {
+    display: flex;
+    flex-wrap: wrap;
     gap: 0.5rem;
   }
 
@@ -258,8 +302,18 @@
     font-weight: 500;
   }
 
+  button.secondary.play {
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
+    border-color: var(--accent);
+  }
+
   button.secondary:hover:not(:disabled) {
     background: color-mix(in srgb, var(--accent) 18%, transparent);
     border-color: var(--accent);
+  }
+
+  button.secondary:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
 </style>
