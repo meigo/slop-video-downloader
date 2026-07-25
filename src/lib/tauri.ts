@@ -10,9 +10,14 @@ import type {
 
 export const checkDeps = () => invoke<DepsStatus>("check_deps");
 export const fetchMetadata = (url: string) => invoke<VideoMeta>("fetch_metadata", { url });
-export const resolvePreview = (url: string) => invoke<PreviewResult>("resolve_preview", { url });
+export const resolvePreview = (url: string, forceFile?: boolean) =>
+  invoke<PreviewResult>("resolve_preview", {
+    url,
+    force_file: forceFile ?? null,
+  });
 export const exportClip = (opts: ExportOpts) => invoke<ExportResult>("export_clip", { opts });
 export const loadSettings = () => invoke<AppSettings>("load_settings");
 export const saveSettings = (settings: AppSettings) =>
   invoke<void>("save_settings", { settings });
 export const defaultSaveDir = () => invoke<string>("default_save_dir");
+export const revealInFolder = (path: string) => invoke<void>("reveal_in_folder", { path });

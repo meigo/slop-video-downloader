@@ -185,34 +185,41 @@ pub async fn fetch_metadata(url: String) -> Result<VideoMeta, String> {
 }
 
 #[tauri::command]
-pub async fn resolve_preview(url: String) -> Result<PreviewResult, String> {
+pub async fn resolve_preview(
+    url: String,
+    force_file: Option<bool>,
+) -> Result<PreviewResult, String> {
     let url = crate::youtube::normalize_youtube_url(&url)
         .ok_or_else(|| "YouTube only in v1".to_string())?;
 
-    // 1) Try progressive single-URL stream via yt-dlp -g
-    let url_for_stream = url.clone();
-    let stream_output = tauri::async_runtime::spawn_blocking(move || {
-        Command::new("yt-dlp")
-            .args(stream_url_args(&url_for_stream))
-            .output()
-    })
-    .await
-    .map_err(|e| e.to_string())?
-    .map_err(|e| format!("Failed to run yt-dlp: {e}"))?;
+    let force_file = force_file.unwrap_or(false);
 
-    if stream_output.status.success() {
-        if let Some(stream_url) =
-            single_http_url(&String::from_utf8_lossy(&stream_output.stdout))
-        {
-            return Ok(PreviewResult {
-                mode: "stream".into(),
-                url_or_path: stream_url,
-                note: None,
-            });
+    // 1) Try progressive single-URL stream via yt-dlp -g (unless force_file)
+    if !force_file {
+        let url_for_stream = url.clone();
+        let stream_output = tauri::async_runtime::spawn_blocking(move || {
+            Command::new("yt-dlp")
+                .args(stream_url_args(&url_for_stream))
+                .output()
+        })
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| format!("Failed to run yt-dlp: {e}"))?;
+
+        if stream_output.status.success() {
+            if let Some(stream_url) =
+                single_http_url(&String::from_utf8_lossy(&stream_output.stdout))
+            {
+                return Ok(PreviewResult {
+                    mode: "stream".into(),
+                    url_or_path: stream_url,
+                    note: None,
+                });
+            }
         }
     }
 
-    // 2) Fallback: download ≤720p preview into temp dir
+    // 2) Fallback (or forced): download ≤720p preview into temp dir
     let temp_dir = preview_temp_dir();
     std::fs::create_dir_all(&temp_dir)
         .map_err(|e| format!("Failed to create temp dir: {e}"))?;

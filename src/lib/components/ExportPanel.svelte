@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { open } from "@tauri-apps/plugin-dialog";
   import { formatTimestamp } from "$lib/time";
 
   interface Props {
@@ -9,6 +10,7 @@
     includeAudio: boolean;
     savePath: string;
     canExport: boolean;
+    exporting?: boolean;
     onExport?: () => void;
   }
 
@@ -20,6 +22,7 @@
     includeAudio = $bindable(),
     savePath = $bindable(),
     canExport,
+    exporting = false,
     onExport,
   }: Props = $props();
 
@@ -28,6 +31,22 @@
   function onHeightChange(event: Event) {
     const value = (event.currentTarget as HTMLSelectElement).value;
     maxHeight = value === "source" ? null : Number(value);
+  }
+
+  async function pickFolder() {
+    try {
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        defaultPath: savePath || undefined,
+        title: "Choose export folder",
+      });
+      if (typeof selected === "string" && selected.length > 0) {
+        savePath = selected;
+      }
+    } catch {
+      // User cancel or dialog unavailable in non-Tauri env
+    }
   }
 </script>
 
@@ -68,14 +87,23 @@
     <span>Include audio</span>
   </label>
 
-  <label class="field">
+  <div class="field">
     <span>Save to</span>
-    <input type="text" bind:value={savePath} placeholder="Export folder path" />
-    <span class="hint">Chosen folder (folder dialog in a later step)</span>
-  </label>
+    <div class="path-row">
+      <input type="text" bind:value={savePath} placeholder="Export folder path" />
+      <button type="button" class="browse" onclick={() => void pickFolder()} disabled={exporting}>
+        Browse…
+      </button>
+    </div>
+  </div>
 
-  <button type="button" class="export-btn" disabled={!canExport} onclick={() => onExport?.()}>
-    Export clip
+  <button
+    type="button"
+    class="export-btn"
+    disabled={!canExport || exporting}
+    onclick={() => onExport?.()}
+  >
+    {exporting ? "Exporting…" : "Export clip"}
   </button>
 </aside>
 
@@ -142,9 +170,27 @@
     margin: 0;
   }
 
-  .hint {
-    font-size: 0.75rem;
-    color: var(--muted);
+  .path-row {
+    display: flex;
+    gap: 0.4rem;
+    min-width: 0;
+  }
+
+  .path-row input {
+    flex: 1;
+    min-width: 0;
+  }
+
+  button.browse {
+    flex-shrink: 0;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  button.browse:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    border-color: var(--accent);
   }
 
   .export-btn {

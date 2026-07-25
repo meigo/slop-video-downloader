@@ -8,7 +8,7 @@ mod ytdlp;
 
 use deps::check_deps;
 use export::export_clip;
-use settings::{default_save_dir, load_settings, save_settings};
+use settings::{default_save_dir, load_settings, reveal_in_folder, save_settings};
 use ytdlp::{fetch_metadata, resolve_preview};
 
 #[tauri::command]
@@ -20,6 +20,7 @@ fn greet(name: &str) -> String {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
             greet,
             check_deps,
@@ -28,7 +29,8 @@ pub fn run() {
             export_clip,
             load_settings,
             save_settings,
-            default_save_dir
+            default_save_dir,
+            reveal_in_folder
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
