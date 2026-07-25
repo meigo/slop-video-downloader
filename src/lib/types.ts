@@ -20,6 +20,7 @@ export type PreviewResult = {
 
 export type ExportOpts = {
   url: string;
+  title: string;
   start_secs: number;
   end_secs: number;
   max_height: number | null; // null = source

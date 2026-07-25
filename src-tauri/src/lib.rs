@@ -1,10 +1,12 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 mod deps;
+mod export;
 pub mod filename;
 pub mod youtube;
 mod ytdlp;
 
 use deps::check_deps;
+use export::export_clip;
 use ytdlp::{fetch_metadata, resolve_preview};
 
 #[tauri::command]
@@ -20,7 +22,8 @@ pub fn run() {
             greet,
             check_deps,
             fetch_metadata,
-            resolve_preview
+            resolve_preview,
+            export_clip
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
