@@ -1,9 +1,11 @@
 [package]
 name = "slop-video-downloader"
 version = "0.1.0"
-description = "Slop Video Downloader"
-authors = ["you"]
+description = "Desktop app to preview YouTube clips, set in/out points, and export H.264 MP4 or AAC M4A via yt-dlp and ffmpeg"
+authors = ["Meigo"]
+license = "MIT"
 edition = "2021"
+repository = "https://github.com/meigo/slop-video-downloader"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

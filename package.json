@@ -1,7 +1,7 @@
 {
   "name": "slop-video-downloader",
   "version": "0.1.0",
-  "description": "Slop Video Downloader",
+  "description": "Desktop app to preview YouTube clips, set in/out points, and export H.264 MP4 or AAC M4A via yt-dlp and ffmpeg",
   "type": "module",
   "scripts": {
     "dev": "vite dev",

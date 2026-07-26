@@ -1,10 +1,22 @@
 # Slop Video Downloader
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Desktop app that turns a public YouTube URL into a short, browser-friendly **H.264 + AAC MP4** clip (or AAC **M4A** audio).
 
 Paste a URL → preview in-app → set in/out on a timeline → export a trimmed clip (default max height 1080p, audio on, save under `~/Movies/Slop Refs`).
 
 **Stack:** Tauri 2 + SvelteKit + TypeScript, with **yt-dlp** and **ffmpeg** as external tools on your `PATH`.
+
+## Features
+
+- YouTube URL paste + metadata fetch
+- Hybrid preview (stream first, local file fallback)
+- Timeline in/out with keyboard shortcuts
+- Full-video play or selection loop
+- Export **video** (H.264 MP4) or **audio only** (AAC M4A)
+- Dependency check for `yt-dlp` / `ffmpeg` with install hints
+- macOS-first (Finder reveal on export)
 
 ## Requirements
 
@@ -95,4 +107,4 @@ docs/superpowers/    Design spec and implementation plan
 
 ## License
 
-MIT
+[MIT](LICENSE)
