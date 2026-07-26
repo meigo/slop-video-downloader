@@ -276,6 +276,15 @@ pub async fn fetch_metadata(url: String) -> Result<VideoMeta, String> {
     parse_metadata_json(&output.stdout)
 }
 
+/// X/Vimeo CDN stream URLs usually need cookies/headers the webview cannot send.
+/// Always download a local merged file for those families.
+fn prefer_file_preview(url: &str) -> bool {
+    matches!(
+        crate::source::source_family(url),
+        Some(SourceFamily::X) | Some(SourceFamily::Vimeo)
+    )
+}
+
 #[tauri::command]
 pub async fn resolve_preview(
     url: String,
@@ -284,9 +293,10 @@ pub async fn resolve_preview(
     let url = crate::source::normalize_source_url(&url)
         .ok_or_else(|| crate::source::UNSUPPORTED_SITE_MESSAGE.to_string())?;
 
-    let force_file = force_file.unwrap_or(false);
+    let force_file = force_file.unwrap_or(false) || prefer_file_preview(&url);
 
-    // 1) Try progressive single-URL stream via yt-dlp -g (unless force_file)
+    // 1) Try progressive single-URL stream via yt-dlp -g (YouTube mainly).
+    // Skip for X/Vimeo: bare CDN URLs play as black/0:00 in the webview.
     if !force_file {
         let url_for_stream = url.clone();
         let stream_output = tauri::async_runtime::spawn_blocking(move || {
@@ -302,16 +312,23 @@ pub async fn resolve_preview(
             if let Some(stream_url) =
                 single_http_url(&String::from_utf8_lossy(&stream_output.stdout))
             {
-                return Ok(PreviewResult {
-                    mode: "stream".into(),
-                    url_or_path: stream_url,
-                    note: None,
-                });
+                // Reject Twitter/Vimeo CDN hosts even if stream mode was allowed.
+                let lower = stream_url.to_ascii_lowercase();
+                if !lower.contains("video.twimg.com")
+                    && !lower.contains("vimeocdn.com")
+                    && !lower.contains("vimeo.com")
+                {
+                    return Ok(PreviewResult {
+                        mode: "stream".into(),
+                        url_or_path: stream_url,
+                        note: None,
+                    });
+                }
             }
         }
     }
 
-    // 2) Fallback (or forced): download ≤720p preview into temp dir
+    // 2) Local ≤720p (or best merged) preview — required for X/Vimeo.
     // Unique job id so we find the file without assuming YouTube-style ids.
     let job_id = uuid::Uuid::new_v4().to_string();
     let temp_dir = preview_temp_dir();
@@ -340,10 +357,16 @@ pub async fn resolve_preview(
 
     let path = find_preview_file(&temp_dir, &job_id)?;
 
+    let note = if prefer_file_preview(&url) {
+        Some("Using local preview (required for this site).".into())
+    } else {
+        Some(PREVIEW_NOTE_FILE.into())
+    };
+
     Ok(PreviewResult {
         mode: "file".into(),
         url_or_path: path,
-        note: Some(PREVIEW_NOTE_FILE.into()),
+        note,
     })
 }
 
@@ -456,5 +479,21 @@ mod tests {
     fn youtube_metadata_args_skip_cookies() {
         let a = metadata_args("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
         assert!(!a.contains(&"--cookies-from-browser".to_string()));
+    }
+
+    #[test]
+    fn x_prefers_file_preview() {
+        assert!(prefer_file_preview("https://x.com/i/status/1234567890123456789"));
+        assert!(prefer_file_preview("https://vimeo.com/123456789"));
+        assert!(!prefer_file_preview(
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        ));
+    }
+
+    #[test]
+    fn x_metadata_args_include_chrome_cookies() {
+        let a = metadata_args("https://x.com/i/status/1234567890123456789");
+        assert!(a.contains(&"--cookies-from-browser".to_string()));
+        assert!(a.contains(&"chrome".to_string()));
     }
 }
