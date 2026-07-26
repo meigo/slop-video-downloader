@@ -7,8 +7,9 @@ use std::process::Command;
 use tauri::{AppHandle, Emitter};
 
 const STDERR_TRUNCATE: usize = 500;
-const SECTION_FORMAT_VIDEO: &str = "bv*+ba/b";
-const SECTION_FORMAT_AUDIO: &str = "ba/bestaudio/b";
+/// Prefer progressive A/V when possible so the section lands as a real local file.
+/// (Audio-only format + sections often leaves stream URLs that ffmpeg 403s on.)
+const SECTION_FORMAT: &str = "bv*+ba/b";
 
 /// What to write to disk.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
@@ -52,35 +53,35 @@ struct ExportProgress {
     pct: Option<f64>,
 }
 
-/// yt-dlp args for section download to an output template (`raw.%(ext)s`).
+/// yt-dlp args for section download to a **local** file (`raw.%(ext)s`).
+///
+/// Always fetches a merged A/V section (not bare `ba` URLs). Audio-only export
+/// reuses this file and strips video in ffmpeg — avoids HTTP 403 when ffmpeg
+/// opens googlevideo stream URLs without yt-dlp’s cookies/headers.
 pub fn section_download_args(
     url: &str,
     start_secs: f64,
     end_secs: f64,
     out_template: &str,
-    audio_only: bool,
 ) -> Vec<String> {
     let section = format!("*{start_secs}-{end_secs}");
-    let mut args = vec![
+    vec![
         "--no-playlist".into(),
+        // Force a real download into -o (never print URLs / invoke external players).
+        "--newline".into(),
         "--download-sections".into(),
         section,
         "-f".into(),
-        if audio_only {
-            SECTION_FORMAT_AUDIO.into()
-        } else {
-            SECTION_FORMAT_VIDEO.into()
-        },
-    ];
-    if !audio_only {
-        args.push("--merge-output-format".into());
-        args.push("mp4".into());
-    }
-    args.push("-o".into());
-    args.push(out_template.into());
-    args.push("--".into());
-    args.push(url.into());
-    args
+        SECTION_FORMAT.into(),
+        "--merge-output-format".into(),
+        "mp4".into(),
+        // Prefer remux of section into a single local file.
+        "--force-keyframes-at-cuts".into(),
+        "-o".into(),
+        out_template.into(),
+        "--".into(),
+        url.into(),
+    ]
 }
 
 /// ffmpeg args: H.264 re-encode, optional scale/audio strip, faststart.
@@ -120,19 +121,43 @@ pub fn ffmpeg_transcode_args(
     args
 }
 
-/// ffmpeg args: audio-only AAC in `.m4a` (browser / animator friendly).
+/// ffmpeg args: audio-only AAC in `.m4a` from a **local** media file.
 pub fn ffmpeg_audio_extract_args(input: &str, output: &str) -> Vec<String> {
     vec![
         "-y".into(),
         "-i".into(),
         input.into(),
         "-vn".into(),
+        "-map".into(),
+        "0:a:0?".into(),
         "-c:a".into(),
         "aac".into(),
         "-b:a".into(),
         "192k".into(),
         output.into(),
     ]
+}
+
+fn assert_local_media(path: &Path) -> Result<(), String> {
+    let s = path.to_string_lossy();
+    if s.starts_with("http://") || s.starts_with("https://") {
+        return Err(
+            "Internal error: export expected a local file but got a URL (refusing ffmpeg open)"
+                .into(),
+        );
+    }
+    if !path.is_file() {
+        return Err(format!("Downloaded media missing: {}", path.display()));
+    }
+    let meta = std::fs::metadata(path).map_err(|e| e.to_string())?;
+    if meta.len() < 64 {
+        return Err(format!(
+            "Downloaded media looks empty or invalid ({} bytes): {}",
+            meta.len(),
+            path.display()
+        ));
+    }
+    Ok(())
 }
 
 fn truncate_err(stderr: &str) -> String {
@@ -190,17 +215,34 @@ fn unique_output_path(path: PathBuf) -> PathBuf {
 fn find_raw_file(work_dir: &Path) -> Result<PathBuf, String> {
     let preferred_mp4 = work_dir.join("raw.mp4");
     if preferred_mp4.is_file() {
+        assert_local_media(&preferred_mp4)?;
         return Ok(preferred_mp4);
     }
 
     let entries = std::fs::read_dir(work_dir)
         .map_err(|e| format!("Failed to read export temp dir: {e}"))?;
+    let mut candidates: Vec<PathBuf> = Vec::new();
     for entry in entries.flatten() {
+        let path = entry.path();
         let name = entry.file_name();
         let name = name.to_string_lossy();
-        if name.starts_with("raw.") && entry.path().is_file() {
-            return Ok(entry.path());
+        // Skip yt-dlp bookkeeping / incomplete parts.
+        if name.ends_with(".part")
+            || name.ends_with(".ytdl")
+            || name.ends_with(".temp")
+            || name.ends_with(".info.json")
+        {
+            continue;
         }
+        if name.starts_with("raw.") && path.is_file() {
+            candidates.push(path);
+        }
+    }
+    // Prefer largest file (real media over tiny stubs).
+    candidates.sort_by_key(|p| std::fs::metadata(p).map(|m| m.len()).unwrap_or(0));
+    if let Some(path) = candidates.pop() {
+        assert_local_media(&path)?;
+        return Ok(path);
     }
     Err("Section download succeeded but raw file not found".to_string())
 }
@@ -234,12 +276,12 @@ pub async fn export_clip(app: AppHandle, opts: ExportOpts) -> Result<ExportResul
         .to_string_lossy()
         .into_owned();
 
-    // --- download ---
+    // --- download (local section file for both video and audio exports) ---
     emit_progress(
         &app,
         "download",
         if audio_only {
-            "Downloading audio section…"
+            "Downloading section for audio extract…"
         } else {
             "Downloading clip section…"
         },
@@ -252,9 +294,7 @@ pub async fn export_clip(app: AppHandle, opts: ExportOpts) -> Result<ExportResul
     let template = out_template.clone();
     let dl_output = tauri::async_runtime::spawn_blocking(move || {
         Command::new("yt-dlp")
-            .args(section_download_args(
-                &url_dl, start, end, &template, audio_only,
-            ))
+            .args(section_download_args(&url_dl, start, end, &template))
             .output()
     })
     .await
@@ -262,12 +302,19 @@ pub async fn export_clip(app: AppHandle, opts: ExportOpts) -> Result<ExportResul
     .map_err(|e| format!("Failed to run yt-dlp: {e}"))?;
 
     if !dl_output.status.success() {
+        let _ = std::fs::remove_dir_all(&work_dir);
         return Err(truncate_err(&String::from_utf8_lossy(&dl_output.stderr)));
     }
 
-    let raw_path = find_raw_file(&work_dir)?;
+    let raw_path = match find_raw_file(&work_dir) {
+        Ok(p) => p,
+        Err(e) => {
+            let _ = std::fs::remove_dir_all(&work_dir);
+            return Err(e);
+        }
+    };
 
-    // --- encode ---
+    // --- encode (never pass http(s) URLs into ffmpeg) ---
     emit_progress(
         &app,
         "transcode",
@@ -280,6 +327,13 @@ pub async fn export_clip(app: AppHandle, opts: ExportOpts) -> Result<ExportResul
     );
 
     let input = raw_path.to_string_lossy().into_owned();
+    if input.starts_with("http://") || input.starts_with("https://") {
+        let _ = std::fs::remove_dir_all(&work_dir);
+        return Err(
+            "Download produced a stream URL instead of a local file; try updating yt-dlp (`brew upgrade yt-dlp`) and retry."
+                .into(),
+        );
+    }
     let output = final_path.to_string_lossy().into_owned();
     let max_height = opts.max_height;
     let include_audio = opts.include_audio;
@@ -297,7 +351,14 @@ pub async fn export_clip(app: AppHandle, opts: ExportOpts) -> Result<ExportResul
 
     if !ff_output.status.success() {
         let _ = std::fs::remove_file(&final_path);
-        return Err(truncate_err(&String::from_utf8_lossy(&ff_output.stderr)));
+        let _ = std::fs::remove_dir_all(&work_dir);
+        let mut msg = truncate_err(&String::from_utf8_lossy(&ff_output.stderr));
+        if msg.contains("403") || msg.contains("Forbidden") {
+            msg.push_str(
+                " — tip: update yt-dlp (`brew upgrade yt-dlp`) if YouTube blocks the download.",
+            );
+        }
+        return Err(msg);
     }
 
     if !final_path.is_file() {
@@ -317,34 +378,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn download_sections_format_video() {
+    fn download_sections_format() {
         let args = section_download_args(
             "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
             72.0,
             105.0,
             "/tmp/raw.%(ext)s",
-            false,
         );
         assert!(args.iter().any(|a| a.contains("--download-sections")));
         assert!(args.iter().any(|a| a == "*72-105" || a.contains("*72")));
         assert!(args.contains(&"--no-playlist".to_string()));
-        assert!(args.contains(&SECTION_FORMAT_VIDEO.to_string()));
+        assert!(args.contains(&SECTION_FORMAT.to_string()));
         assert!(args.contains(&"--merge-output-format".to_string()));
         assert!(args.contains(&"mp4".to_string()));
-    }
-
-    #[test]
-    fn download_sections_format_audio() {
-        let args = section_download_args(
-            "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-            72.0,
-            105.0,
-            "/tmp/raw.%(ext)s",
-            true,
-        );
-        assert!(args.contains(&SECTION_FORMAT_AUDIO.to_string()));
-        assert!(!args.contains(&"--merge-output-format".to_string()));
-        assert!(args.iter().any(|a| a == "*72-105" || a.contains("*72")));
+        assert!(args.contains(&"--force-keyframes-at-cuts".to_string()));
     }
 
     #[test]
@@ -368,10 +415,11 @@ mod tests {
 
     #[test]
     fn ffmpeg_audio_only_extract() {
-        let args = ffmpeg_audio_extract_args("/tmp/in.webm", "/tmp/out.m4a");
+        let args = ffmpeg_audio_extract_args("/tmp/in.mp4", "/tmp/out.m4a");
         assert!(args.contains(&"-vn".to_string()));
         assert!(args.contains(&"aac".to_string()));
         assert!(args.contains(&"192k".to_string()));
+        assert!(args.contains(&"-map".to_string()));
         assert!(!args.iter().any(|a| a == "libx264"));
         assert_eq!(args.last().map(String::as_str), Some("/tmp/out.m4a"));
     }
