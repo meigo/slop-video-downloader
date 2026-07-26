@@ -16,4 +16,9 @@ describe("buildClipFilename", () => {
       "Hello World_01m12s-01m45s.mp4",
     );
   });
+  it("supports audio extension", () => {
+    expect(buildClipFilename("Hello World", 72, 105, "m4a")).toBe(
+      "Hello World_01m12s-01m45s.m4a",
+    );
+  });
 });

@@ -34,12 +34,15 @@ pub fn sanitize_title(title: &str) -> String {
     }
 }
 
-/// `{sanitized}_{start}-{end}.mp4` using filename time tokens.
-pub fn build_clip_filename(title: &str, start_secs: f64, end_secs: f64) -> String {
+/// `{sanitized}_{start}-{end}.{ext}` using filename time tokens.
+/// `ext` should be without a leading dot (e.g. `"mp4"`, `"m4a"`).
+pub fn build_clip_filename(title: &str, start_secs: f64, end_secs: f64, ext: &str) -> String {
     let safe = sanitize_title(title);
     let start = format_filename_time(start_secs);
     let end = format_filename_time(end_secs);
-    format!("{safe}_{start}-{end}.mp4")
+    let ext = ext.trim_start_matches('.');
+    let ext = if ext.is_empty() { "mp4" } else { ext };
+    format!("{safe}_{start}-{end}.{ext}")
 }
 
 #[cfg(test)]
@@ -64,8 +67,12 @@ mod tests {
     #[test]
     fn build_clip_filename_format() {
         assert_eq!(
-            build_clip_filename("Hello World", 72.0, 105.0),
+            build_clip_filename("Hello World", 72.0, 105.0, "mp4"),
             "Hello World_01m12s-01m45s.mp4"
+        );
+        assert_eq!(
+            build_clip_filename("Hello World", 72.0, 105.0, "m4a"),
+            "Hello World_01m12s-01m45s.m4a"
         );
     }
 }

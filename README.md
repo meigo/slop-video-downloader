@@ -67,8 +67,13 @@ Unit tests do **not** hit live YouTube; they cover URL validation, deps parsing,
 3. Paste a **public YouTube URL** and click **Fetch**.
 4. Wait for metadata and preview (stream first; falls back to a local file if streaming fails).
 5. Set **in** and **out** on the timeline (drag handles, **Set In** / **Set Out**, or keys **I** / **O**).
-6. Optionally adjust max height, include audio, and output folder (defaults: 1080, audio on, `~/Movies/Slop Refs`).
-7. Click **Export clip**. Watch progress; on success the file is revealed in Finder (macOS) / equivalent opener elsewhere.
+6. Optionally choose **export type** (video MP4 or audio-only M4A), max height / include audio (video only), and output folder (defaults: 1080, audio on, `~/Movies/Slop Refs`).
+7. Click **Export clip** / **Export audio**. Watch progress; on success the file is revealed in Finder (macOS) / equivalent opener elsewhere.
+
+**Export types**
+
+- **Video (MP4)** — H.264 + optional AAC, animator video reference.
+- **Audio only (M4A)** — AAC soundtrack for the same in/out range; useful as slop-animator’s project audio track.
 
 Keyboard (when focus is not in an input):
 

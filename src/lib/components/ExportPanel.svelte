@@ -4,8 +4,10 @@
   import Film from "@lucide/svelte/icons/film";
   import FolderOpen from "@lucide/svelte/icons/folder-open";
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+  import Music from "@lucide/svelte/icons/music";
   import Volume2 from "@lucide/svelte/icons/volume-2";
   import { formatTimestamp } from "$lib/time";
+  import type { ExportKind } from "$lib/types";
 
   interface Props {
     inPoint: number;
@@ -13,6 +15,7 @@
     duration: number;
     maxHeight: number | null;
     includeAudio: boolean;
+    exportKind: ExportKind;
     savePath: string;
     canExport: boolean;
     exporting?: boolean;
@@ -25,6 +28,7 @@
     duration,
     maxHeight = $bindable(),
     includeAudio = $bindable(),
+    exportKind = $bindable("video" as ExportKind),
     savePath = $bindable(),
     canExport,
     exporting = false,
@@ -32,11 +36,17 @@
   }: Props = $props();
 
   const clipDuration = $derived(Math.max(0, outPoint - inPoint));
+  const audioOnly = $derived(exportKind === "audio");
   const ICON = 16;
 
   function onHeightChange(event: Event) {
     const value = (event.currentTarget as HTMLSelectElement).value;
     maxHeight = value === "source" ? null : Number(value);
+  }
+
+  function onKindChange(event: Event) {
+    const value = (event.currentTarget as HTMLSelectElement).value;
+    exportKind = value === "audio" ? "audio" : "video";
   }
 
   async function pickFolder() {
@@ -58,7 +68,11 @@
 
 <aside class="export-panel">
   <h2>
-    <Film size={18} strokeWidth={2} aria-hidden="true" />
+    {#if audioOnly}
+      <Music size={18} strokeWidth={2} aria-hidden="true" />
+    {:else}
+      <Film size={18} strokeWidth={2} aria-hidden="true" />
+    {/if}
     <span>Export</span>
   </h2>
 
@@ -82,20 +96,39 @@
   </dl>
 
   <label class="field">
-    <span>Max height</span>
-    <select value={maxHeight === null ? "source" : String(maxHeight)} onchange={onHeightChange}>
-      <option value="480">480</option>
-      <option value="720">720</option>
-      <option value="1080">1080</option>
-      <option value="source">Source</option>
+    <span>Export type</span>
+    <select value={exportKind} onchange={onKindChange} disabled={exporting}>
+      <option value="video">Video (MP4)</option>
+      <option value="audio">Audio only (M4A)</option>
     </select>
   </label>
 
-  <label class="field checkbox">
-    <input type="checkbox" bind:checked={includeAudio} />
-    <Volume2 size={ICON} strokeWidth={2} aria-hidden="true" />
-    <span>Include audio</span>
-  </label>
+  {#if !audioOnly}
+    <label class="field">
+      <span>Max height</span>
+      <select
+        value={maxHeight === null ? "source" : String(maxHeight)}
+        onchange={onHeightChange}
+        disabled={exporting}
+      >
+        <option value="480">480</option>
+        <option value="720">720</option>
+        <option value="1080">1080</option>
+        <option value="source">Source</option>
+      </select>
+    </label>
+
+    <label class="field checkbox">
+      <input type="checkbox" bind:checked={includeAudio} disabled={exporting} />
+      <Volume2 size={ICON} strokeWidth={2} aria-hidden="true" />
+      <span>Include audio</span>
+    </label>
+  {:else}
+    <p class="note muted">
+      AAC audio in <code>.m4a</code> — good for slop-animator’s project audio track.
+      Max height and video audio toggle don’t apply.
+    </p>
+  {/if}
 
   <div class="field">
     <span>Save to</span>
@@ -111,12 +144,16 @@
   <button
     type="button"
     class="export-btn"
+    class:audio={audioOnly}
     disabled={!canExport || exporting}
     onclick={() => onExport?.()}
   >
     {#if exporting}
       <LoaderCircle class="spin" size={ICON} strokeWidth={2} aria-hidden="true" />
       <span>Exporting…</span>
+    {:else if audioOnly}
+      <Music size={ICON} strokeWidth={2} aria-hidden="true" />
+      <span>Export audio</span>
     {:else}
       <Download size={ICON} strokeWidth={2} aria-hidden="true" />
       <span>Export clip</span>
@@ -190,6 +227,21 @@
     margin: 0;
   }
 
+  .note {
+    margin: 0;
+    font-size: 0.82rem;
+    line-height: 1.4;
+  }
+
+  .note code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.85em;
+  }
+
+  .muted {
+    color: var(--muted);
+  }
+
   .path-row {
     display: flex;
     gap: 0.4rem;
@@ -223,6 +275,15 @@
     align-items: center;
     justify-content: center;
     gap: 0.45rem;
+  }
+
+  .export-btn.audio {
+    background: var(--selection);
+    color: #1a1400;
+  }
+
+  .export-btn.audio:hover:not(:disabled) {
+    background: var(--selection-hover);
   }
 
   .export-btn :global(.spin) {

@@ -18,14 +18,18 @@ export type PreviewResult = {
   note?: string | null;
 };
 
+/** Video MP4 (animator reference) or audio-only AAC m4a (project audio track). */
+export type ExportKind = "video" | "audio";
+
 export type ExportOpts = {
   url: string;
   title: string;
   start_secs: number;
   end_secs: number;
-  max_height: number | null; // null = source
-  include_audio: boolean;
+  max_height: number | null; // null = source; ignored for audio
+  include_audio: boolean; // video mux only; ignored for audio (always on)
   out_dir: string;
+  export_kind?: ExportKind; // default "video"
 };
 
 export type ExportResult = { output_path: string };

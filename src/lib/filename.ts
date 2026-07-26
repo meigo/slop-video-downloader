@@ -8,14 +8,16 @@ export function sanitizeTitle(title: string): string {
   return collapsed.length > 0 ? collapsed : "clip";
 }
 
-/** `{sanitized}_{start}-{end}.mp4` using filename time tokens. */
+/** `{sanitized}_{start}-{end}.{ext}` using filename time tokens. Default ext `mp4`. */
 export function buildClipFilename(
   title: string,
   startSecs: number,
   endSecs: number,
+  ext: string = "mp4",
 ): string {
   const safe = sanitizeTitle(title);
   const start = formatFilenameTime(startSecs);
   const end = formatFilenameTime(endSecs);
-  return `${safe}_${start}-${end}.mp4`;
+  const cleanExt = (ext.startsWith(".") ? ext.slice(1) : ext) || "mp4";
+  return `${safe}_${start}-${end}.${cleanExt}`;
 }

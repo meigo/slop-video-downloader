@@ -20,7 +20,7 @@
     saveSettings,
   } from "$lib/tauri";
   import { clampRange, formatTimestamp } from "$lib/time";
-  import type { AppSettings, DepsStatus, PreviewResult, VideoMeta } from "$lib/types";
+  import type { AppSettings, DepsStatus, ExportKind, PreviewResult, VideoMeta } from "$lib/types";
   import { isYouTubeUrl } from "$lib/youtube";
 
   let deps = $state<DepsStatus | null>(null);
@@ -39,6 +39,7 @@
   let currentTime = $state(0);
   let maxHeight = $state<number | null>(1080);
   let includeAudio = $state(true);
+  let exportKind = $state<ExportKind>("video");
   let savePath = $state("");
 
   let player = $state<ReturnType<typeof VideoPlayer> | null>(null);
@@ -324,9 +325,10 @@
         title: meta.title,
         start_secs: inPoint,
         end_secs: outPoint,
-        max_height: maxHeight,
-        include_audio: includeAudio,
+        max_height: exportKind === "audio" ? null : maxHeight,
+        include_audio: exportKind === "audio" ? true : includeAudio,
         out_dir: savePath.trim(),
+        export_kind: exportKind,
       });
 
       status = `Saved: ${result.output_path}`;
@@ -429,6 +431,7 @@
         {duration}
         bind:maxHeight
         bind:includeAudio
+        bind:exportKind
         bind:savePath
         {canExport}
         {exporting}
