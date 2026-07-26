@@ -42,10 +42,27 @@ Also install a recent Node LTS and the [Rust toolchain](https://rustup.rs/). Tau
 - No login / cookies UI — private or age-gated pages will fail via yt-dlp.
 - If section download isn’t supported for a site, export may **download more of the media** before trimming.
 
+**Vimeo note:** Vimeo currently requires yt-dlp **browser impersonation** (`curl_cffi`). Homebrew’s `yt-dlp` often reports *no impersonate target is available* and fails with OAuth **401**. Prefer one of:
+
+```bash
+# Option A — pipx (includes curl-cffi)
+brew install pipx && pipx ensurepath
+pipx install "yt-dlp[default,curl-cffi]"
+
+# Option B — official macOS binary from GitHub Releases
+# https://github.com/yt-dlp/yt-dlp/releases  → yt-dlp_macos
+```
+
+Then verify:
+
+```bash
+yt-dlp --list-impersonate-targets   # Chrome/Safari should be available
+```
+
 **Notes**
 
 - **yt-dlp and ffmpeg must be on `PATH`.** The app checks at startup and shows install guidance if either is missing. Binaries are not bundled in the installer.
-- Keep yt-dlp updated (`brew upgrade yt-dlp`) when a site stops working.
+- Keep yt-dlp updated when a site stops working.
 
 ## Development
 

@@ -191,6 +191,16 @@ fn assert_local_media(path: &Path) -> Result<(), String> {
 }
 
 fn truncate_err(stderr: &str) -> String {
+    // Prefer yt-dlp-aware mapping when the message looks like extractor output.
+    let lower = stderr.to_ascii_lowercase();
+    if lower.contains("yt-dlp")
+        || lower.contains("[vimeo]")
+        || lower.contains("[youtube]")
+        || lower.contains("oauth")
+        || lower.contains("impersonat")
+    {
+        return crate::ytdlp::format_ytdlp_error(stderr);
+    }
     let trimmed = stderr.trim();
     if trimmed.is_empty() {
         return "command failed with no error output".to_string();

@@ -68,10 +68,42 @@ pub fn preview_download_args(url: &str, out_template: &str) -> Vec<String> {
 }
 
 fn truncate_err(stderr: &str) -> String {
+    format_ytdlp_error(stderr)
+}
+
+/// Map common yt-dlp failures to short user-facing guidance.
+pub fn format_ytdlp_error(stderr: &str) -> String {
     let trimmed = stderr.trim();
     if trimmed.is_empty() {
         return "yt-dlp failed with no error output".to_string();
     }
+
+    let lower = trimmed.to_ascii_lowercase();
+
+    // Vimeo currently requires TLS fingerprint impersonation; Homebrew yt-dlp often lacks curl_cffi.
+    // https://github.com/yt-dlp/yt-dlp/issues/17271
+    if lower.contains("vimeo")
+        && (lower.contains("oauth")
+            || lower.contains("401")
+            || lower.contains("unauthorized")
+            || lower.contains("impersonat"))
+    {
+        return "Vimeo blocked this request (OAuth/impersonation). \
+Homebrew’s yt-dlp often cannot do this. Install a build with curl_cffi, e.g.:\n\n\
+  pipx install \"yt-dlp[default,curl-cffi]\"\n\n\
+or download yt-dlp_macos from https://github.com/yt-dlp/yt-dlp/releases\n\n\
+Then check: yt-dlp --list-impersonate-targets\n\
+(You should see Chrome/Safari targets as available.)".to_string();
+    }
+
+    if lower.contains("impersonat")
+        && (lower.contains("unavailable") || lower.contains("no impersonate"))
+    {
+        return "yt-dlp needs browser impersonation for this site, but no target is installed. \
+See: https://github.com/yt-dlp/yt-dlp#impersonation\n\n\
+  pipx install \"yt-dlp[default,curl-cffi]\"".to_string();
+    }
+
     if trimmed.chars().count() <= STDERR_TRUNCATE {
         trimmed.to_string()
     } else {
@@ -338,5 +370,14 @@ mod tests {
     #[test]
     fn truncate_err_short() {
         assert_eq!(truncate_err("  boom  "), "boom");
+    }
+
+    #[test]
+    fn format_vimeo_oauth_error() {
+        let msg = format_ytdlp_error(
+            "ERROR: [vimeo] 184782959: Failed to fetch macos OAuth token: HTTP Error 401: Unauthorized",
+        );
+        assert!(msg.contains("Vimeo blocked"));
+        assert!(msg.contains("curl-cffi") || msg.contains("impersonat"));
     }
 }
