@@ -177,6 +177,16 @@
     player?.seek(t);
   }
 
+  /** Fixed skip amounts — standard for most video UIs (YouTube etc. use ~5s). */
+  const SKIP_SHORT_SECS = 5;
+  const SKIP_LONG_SECS = 10;
+
+  function skipBy(deltaSecs: number) {
+    if (!(duration > 0)) return;
+    const next = Math.min(Math.max(0, currentTime + deltaSecs), duration);
+    onSeek(next);
+  }
+
   function onPlayPause() {
     if (loopSelection && player && !player.isPaused()) {
       loopSelection = false;
@@ -225,6 +235,15 @@
     if (event.key === " " || event.code === "Space") {
       event.preventDefault();
       onPlayPause();
+      return;
+    }
+
+    // ← / → skip a fixed step (not % of duration): predictable on short and long clips.
+    // Shift+arrow uses a longer step for coarse scrubbing.
+    if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      event.preventDefault();
+      const step = event.shiftKey ? SKIP_LONG_SECS : SKIP_SHORT_SECS;
+      skipBy(event.key === "ArrowLeft" ? -step : step);
       return;
     }
 

@@ -168,7 +168,7 @@
         <button
           type="button"
           class="ctrl"
-          title="Skip back {SKIP_SECS}s"
+          title="Skip back {SKIP_SECS}s (←)"
           aria-label="Skip back {SKIP_SECS} seconds"
           onclick={() => onSkip(-SKIP_SECS)}
         >
@@ -193,7 +193,7 @@
         <button
           type="button"
           class="ctrl"
-          title="Skip forward {SKIP_SECS}s"
+          title="Skip forward {SKIP_SECS}s (→)"
           aria-label="Skip forward {SKIP_SECS} seconds"
           onclick={() => onSkip(SKIP_SECS)}
         >

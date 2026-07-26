@@ -72,9 +72,13 @@ Unit tests do **not** hit live YouTube; they cover URL validation, deps parsing,
 
 Keyboard (when focus is not in an input):
 
+- **Space** — play / pause  
+- **←** / **→** — skip back / forward **5s** (same as the transport buttons)  
+- **Shift+←** / **Shift+→** — skip **10s**  
 - **I** — set in point to playhead  
 - **O** — set out point to playhead  
-- **Space** — play / pause  
+
+Skip steps are fixed seconds (not a fraction of duration) so short reference clips and long videos both feel predictable — the usual web-player pattern (e.g. YouTube).
 
 ## Project layout
 
