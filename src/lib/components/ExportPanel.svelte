@@ -44,9 +44,8 @@
     maxHeight = value === "source" ? null : Number(value);
   }
 
-  function onKindChange(event: Event) {
-    const value = (event.currentTarget as HTMLSelectElement).value;
-    exportKind = value === "audio" ? "audio" : "video";
+  function setKind(kind: ExportKind) {
+    exportKind = kind;
   }
 
   async function pickFolder() {
@@ -76,6 +75,37 @@
     <span>Export</span>
   </h2>
 
+  <div
+    class="kind-toggle"
+    role="group"
+    aria-label="Export type"
+  >
+    <button
+      type="button"
+      class="kind-btn"
+      class:active={!audioOnly}
+      disabled={exporting}
+      aria-pressed={!audioOnly}
+      onclick={() => setKind("video")}
+    >
+      <Film size={ICON} strokeWidth={2} aria-hidden="true" />
+      <span>Video</span>
+      <span class="kind-ext">MP4</span>
+    </button>
+    <button
+      type="button"
+      class="kind-btn"
+      class:active={audioOnly}
+      disabled={exporting}
+      aria-pressed={audioOnly}
+      onclick={() => setKind("audio")}
+    >
+      <Music size={ICON} strokeWidth={2} aria-hidden="true" />
+      <span>Audio only</span>
+      <span class="kind-ext">M4A</span>
+    </button>
+  </div>
+
   <dl class="range">
     <div>
       <dt>In</dt>
@@ -90,18 +120,10 @@
       <dd>{formatTimestamp(clipDuration)}</dd>
     </div>
     <div>
-      <dt>Video</dt>
+      <dt>Source</dt>
       <dd>{duration > 0 ? formatTimestamp(duration) : "—"}</dd>
     </div>
   </dl>
-
-  <label class="field">
-    <span>Export type</span>
-    <select value={exportKind} onchange={onKindChange} disabled={exporting}>
-      <option value="video">Video (MP4)</option>
-      <option value="audio">Audio only (M4A)</option>
-    </select>
-  </label>
 
   {#if !audioOnly}
     <label class="field">
@@ -171,6 +193,9 @@
     border: 1px solid var(--border);
     border-radius: 10px;
     min-width: 0;
+    min-height: 0;
+    max-height: 100%;
+    overflow-y: auto;
   }
 
   h2 {
@@ -180,6 +205,62 @@
     display: inline-flex;
     align-items: center;
     gap: 0.45rem;
+  }
+
+  .kind-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem;
+  }
+
+  .kind-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    padding: 0.55rem 0.4rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-weight: 500;
+    font-size: 0.85rem;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .kind-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--text);
+    background: color-mix(in srgb, var(--accent) 12%, var(--bg));
+  }
+
+  .kind-btn.active {
+    color: #fff;
+    background: var(--accent);
+    border-color: transparent;
+  }
+
+  .kind-btn.active:hover:not(:disabled) {
+    background: var(--accent-hover);
+    color: #fff;
+  }
+
+  .kind-btn.active:nth-child(2) {
+    background: var(--selection);
+    color: #1a1400;
+  }
+
+  .kind-btn.active:nth-child(2):hover:not(:disabled) {
+    background: var(--selection-hover);
+    color: #1a1400;
+  }
+
+  .kind-ext {
+    font-size: 0.7rem;
+    opacity: 0.85;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    text-transform: uppercase;
   }
 
   .range {

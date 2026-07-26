@@ -494,14 +494,21 @@
 
   .main {
     display: grid;
-    grid-template-columns: minmax(0, 1.6fr) minmax(220px, 0.9fr);
+    grid-template-columns: minmax(0, 1.6fr) minmax(240px, 0.95fr);
     gap: 0.75rem;
     flex: 1;
     min-height: 280px;
+    min-width: 0;
+    align-items: stretch;
   }
 
   .preview {
     min-height: 240px;
+    min-width: 0;
+  }
+
+  .main :global(.export-panel) {
+    min-height: 0;
   }
 
   .preview-placeholder {
