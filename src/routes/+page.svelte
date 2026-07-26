@@ -43,7 +43,6 @@
 
   let player = $state<ReturnType<typeof VideoPlayer> | null>(null);
   let loopSelection = $state(false);
-  let playerPlaying = $state(false);
   let forceFileFallbackBusy = $state(false);
 
   const depsOk = $derived(!!deps && deps.ytdlp && deps.ffmpeg);
@@ -211,10 +210,6 @@
     player?.play();
   }
 
-  function onPlayState(playing: boolean) {
-    playerPlaying = playing;
-  }
-
   // Loop playhead between in/out while "Play selection" is active.
   $effect(() => {
     if (!loopSelection) return;
@@ -370,7 +365,6 @@
             mode={preview.mode}
             bind:currentTime
             onError={onPreviewError}
-            onPlayState={onPlayState}
           />
         {:else}
           <div class="preview-placeholder">
@@ -399,12 +393,9 @@
       bind:currentTime
       bind:inPoint
       bind:outPoint
-      playing={playerPlaying}
       onSeek={onSeek}
       onSetIn={setInFromPlayhead}
       onSetOut={setOutFromPlayhead}
-      onPlayPause={onPlayPause}
-      onStop={onStop}
       onPlaySelection={onPlaySelection}
     />
   </div>

@@ -1,24 +1,19 @@
 <script lang="ts">
-  import Pause from "@lucide/svelte/icons/pause";
-  import Play from "@lucide/svelte/icons/play";
-  import Repeat from "@lucide/svelte/icons/repeat";
-  import Square from "@lucide/svelte/icons/square";
   import ArrowLeftToLine from "@lucide/svelte/icons/arrow-left-to-line";
   import ArrowRightToLine from "@lucide/svelte/icons/arrow-right-to-line";
+  import Repeat from "@lucide/svelte/icons/repeat";
   import { clampRange, formatTimestamp } from "$lib/time";
+
+  type DragMode = "playhead" | "in" | "out";
 
   interface Props {
     duration: number;
     currentTime: number;
     inPoint: number;
     outPoint: number;
-    /** Whether the main player is currently playing (for button label). */
-    playing?: boolean;
     onSeek?: (t: number) => void;
     onSetIn?: () => void;
     onSetOut?: () => void;
-    onPlayPause?: () => void;
-    onStop?: () => void;
     onPlaySelection?: () => void;
     onInOutChange?: (inPoint: number, outPoint: number) => void;
   }
@@ -28,20 +23,23 @@
     currentTime = $bindable(),
     inPoint = $bindable(),
     outPoint = $bindable(),
-    playing = false,
     onSeek,
     onSetIn,
     onSetOut,
-    onPlayPause,
-    onStop,
     onPlaySelection,
     onInOutChange,
   }: Props = $props();
 
   let trackEl = $state<HTMLDivElement | null>(null);
-  let dragMode = $state<"playhead" | "in" | "out" | null>(null);
+  let dragMode = $state<DragMode | null>(null);
+  let hoverMode = $state<DragMode | null>(null);
 
   const ICON = 16;
+  /**
+   * Grab half-width in CSS pixels. Thin markers stay readable on long videos;
+   * hit testing uses this larger radius (standard scrubber pattern).
+   */
+  const HIT_HALF_PX = 8;
 
   function pct(t: number): number {
     if (!(duration > 0)) return 0;
@@ -68,19 +66,78 @@
     onInOutChange?.(start, end);
   }
 
+  /**
+   * Pick what to drag when markers overlap.
+   * Dual-band priority (common in NLEs):
+   * - Upper band favors playhead
+   * - Lower band favors in/out
+   * Within a band, nearest marker in X wins if inside HIT_HALF_PX.
+   * Empty track click → scrub playhead.
+   */
+  function pickDragMode(clientX: number, clientY: number): DragMode {
+    if (!trackEl || !(duration > 0)) return "playhead";
+
+    const rect = trackEl.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    const w = Math.max(1, rect.width);
+    const h = Math.max(1, rect.height);
+    const xOf = (t: number) => (t / duration) * w;
+    const distX = (t: number) => Math.abs(x - xOf(t));
+
+    const preferPlayhead = y < h * 0.45;
+
+    type Cand = { mode: DragMode; dist: number; bias: number };
+    const cands: Cand[] = [
+      { mode: "in", dist: distX(inPoint), bias: preferPlayhead ? 4 : 0 },
+      { mode: "out", dist: distX(outPoint), bias: preferPlayhead ? 4 : 0 },
+      { mode: "playhead", dist: distX(currentTime), bias: preferPlayhead ? 0 : 4 },
+    ];
+
+    let best: Cand | null = null;
+    let bestScore = Infinity;
+    for (const c of cands) {
+      if (c.dist > HIT_HALF_PX) continue;
+      const score = c.dist + c.bias;
+      if (score < bestScore) {
+        bestScore = score;
+        best = c;
+      }
+    }
+    return best?.mode ?? "playhead";
+  }
+
   function onPointerDown(event: PointerEvent) {
     if (!(duration > 0) || !trackEl) return;
-    const target = event.target as HTMLElement;
-    const handle = target.dataset.handle as "in" | "out" | "playhead" | undefined;
-    dragMode = handle ?? "playhead";
+    dragMode = pickDragMode(event.clientX, event.clientY);
+    hoverMode = dragMode;
     trackEl.setPointerCapture(event.pointerId);
     handleDrag(event.clientX);
     event.preventDefault();
   }
 
   function onPointerMove(event: PointerEvent) {
-    if (!dragMode) return;
-    handleDrag(event.clientX);
+    if (dragMode) {
+      handleDrag(event.clientX);
+      return;
+    }
+    if (!(duration > 0) || !trackEl) {
+      hoverMode = null;
+      return;
+    }
+    // Highlight nearest grabbable marker while hovering.
+    const mode = pickDragMode(event.clientX, event.clientY);
+    const rect = trackEl.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const w = Math.max(1, rect.width);
+    const xOf = (t: number) => (t / duration) * w;
+    const t =
+      mode === "in" ? inPoint : mode === "out" ? outPoint : currentTime;
+    hoverMode = Math.abs(x - xOf(t)) <= HIT_HALF_PX ? mode : null;
+  }
+
+  function onPointerLeave() {
+    if (!dragMode) hoverMode = null;
   }
 
   function onPointerUp(event: PointerEvent) {
@@ -104,6 +161,7 @@
   const outPct = $derived(pct(outPoint));
   const playPct = $derived(pct(currentTime));
   const rangeWidth = $derived(Math.max(0, outPct - inPct));
+  const activeMode = $derived(dragMode ?? hoverMode);
 </script>
 
 <footer class="timeline" aria-label="Timeline">
@@ -115,81 +173,67 @@
 
   <div
     class="track"
+    class:grabbing={!!dragMode}
     bind:this={trackEl}
     role="slider"
     tabindex="0"
     aria-valuemin={0}
     aria-valuemax={duration}
     aria-valuenow={currentTime}
-    aria-label="Seek and selection"
+    aria-label="Seek and selection. Top of track: playhead. Bottom: in and out."
     onpointerdown={onPointerDown}
     onpointermove={onPointerMove}
     onpointerup={onPointerUp}
     onpointercancel={onPointerUp}
+    onpointerleave={onPointerLeave}
   >
     <div class="rail"></div>
+    <div class="range" style="left: {inPct}%; width: {rangeWidth}%;"></div>
+
+    <!-- Visual markers only; all hit-testing is geometric on the track. -->
     <div
-      class="range"
-      style="left: {inPct}%; width: {rangeWidth}%;"
-    ></div>
-    <div
-      class="handle in"
-      data-handle="in"
+      class="marker in"
+      class:active={activeMode === "in"}
       style="left: {inPct}%;"
       title="In point"
-    ></div>
+      aria-hidden="true"
+    >
+      <span class="stem"></span>
+      <span class="flag"></span>
+    </div>
     <div
-      class="handle out"
-      data-handle="out"
+      class="marker out"
+      class:active={activeMode === "out"}
       style="left: {outPct}%;"
       title="Out point"
-    ></div>
+      aria-hidden="true"
+    >
+      <span class="stem"></span>
+      <span class="flag"></span>
+    </div>
     <div
-      class="playhead"
-      data-handle="playhead"
+      class="marker playhead"
+      class:active={activeMode === "playhead"}
       style="left: {playPct}%;"
       title="Playhead"
-    ></div>
+      aria-hidden="true"
+    >
+      <span class="stem"></span>
+      <span class="cap"></span>
+    </div>
   </div>
 
   <div class="actions">
-    <div class="transport">
-      <button
-        type="button"
-        class="secondary play"
-        disabled={!(duration > 0)}
-        title={playing ? "Pause (Space)" : "Play (Space)"}
-        onclick={() => onPlayPause?.()}
-      >
-        {#if playing}
-          <Pause size={ICON} strokeWidth={2} aria-hidden="true" />
-          <span>Pause</span>
-        {:else}
-          <Play size={ICON} strokeWidth={2} aria-hidden="true" />
-          <span>Play</span>
-        {/if}
-      </button>
-      <button
-        type="button"
-        class="secondary"
-        disabled={!(duration > 0)}
-        title="Stop and return to start"
-        onclick={() => onStop?.()}
-      >
-        <Square size={ICON} strokeWidth={2} aria-hidden="true" />
-        <span>Stop</span>
-      </button>
-      <button
-        type="button"
-        class="secondary"
-        disabled={!(outPoint > inPoint)}
-        title="Loop play between in and out"
-        onclick={() => onPlaySelection?.()}
-      >
-        <Repeat size={ICON} strokeWidth={2} aria-hidden="true" />
-        <span>Play selection</span>
-      </button>
-    </div>
+    <button
+      type="button"
+      class="secondary"
+      disabled={!(outPoint > inPoint)}
+      title="Loop play between in and out"
+      onclick={() => onPlaySelection?.()}
+    >
+      <Repeat size={ICON} strokeWidth={2} aria-hidden="true" />
+      <span>Play selection</span>
+    </button>
     <div class="markers">
       <button type="button" class="secondary" onclick={() => onSetIn?.()}>
         <ArrowLeftToLine size={ICON} strokeWidth={2} aria-hidden="true" />
@@ -207,7 +251,7 @@
   .timeline {
     display: flex;
     flex-direction: column;
-    gap: 0.65rem;
+    gap: 0.55rem;
     padding: 0.85rem 1rem;
     background: var(--surface);
     border: 1px solid var(--border);
@@ -229,10 +273,14 @@
 
   .track {
     position: relative;
-    height: 28px;
+    height: 36px;
     cursor: pointer;
     touch-action: none;
     user-select: none;
+  }
+
+  .track.grabbing {
+    cursor: ew-resize;
   }
 
   .rail {
@@ -256,43 +304,71 @@
     pointer-events: none;
   }
 
-  .handle {
+  /* Thin stems + small flags; grab radius is HIT_HALF_PX in script. */
+  .marker {
     position: absolute;
-    top: 50%;
-    width: 10px;
-    height: 18px;
-    margin-left: -5px;
-    transform: translateY(-50%);
-    background: var(--text);
-    border-radius: 2px;
+    top: 0;
+    bottom: 0;
+    width: 0;
+    margin-left: 0;
+    pointer-events: none;
     z-index: 2;
-    cursor: ew-resize;
   }
 
-  .handle.in {
+  .marker .stem {
+    position: absolute;
+    left: 0;
+    width: 2px;
+    margin-left: -1px;
+    border-radius: 1px;
+  }
+
+  .marker.in .stem {
+    top: 40%;
+    bottom: 2px;
     background: var(--accent);
   }
 
-  .handle.out {
+  .marker.out .stem {
+    top: 40%;
+    bottom: 2px;
     background: var(--accent-hover);
   }
 
-  .playhead {
-    position: absolute;
+  .marker.playhead .stem {
     top: 2px;
     bottom: 2px;
-    width: 2px;
-    margin-left: -1px;
     background: #fff;
-    z-index: 3;
-    pointer-events: none;
     box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+    z-index: 3;
   }
 
-  .playhead::after {
-    content: "";
+  /* In: bottom-left caret */
+  .marker.in .flag {
     position: absolute;
-    top: -2px;
+    left: -1px;
+    bottom: 1px;
+    width: 7px;
+    height: 8px;
+    background: var(--accent);
+    clip-path: polygon(0 0, 100% 50%, 0 100%);
+  }
+
+  /* Out: bottom-right caret */
+  .marker.out .flag {
+    position: absolute;
+    left: -6px;
+    bottom: 1px;
+    width: 7px;
+    height: 8px;
+    background: var(--accent-hover);
+    clip-path: polygon(0 50%, 100% 0, 100% 100%);
+  }
+
+  /* Playhead: top cap (diamond) */
+  .marker.playhead .cap {
+    position: absolute;
+    top: 0;
     left: 50%;
     width: 8px;
     height: 8px;
@@ -300,6 +376,26 @@
     background: #fff;
     border-radius: 1px;
     transform: rotate(45deg);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+  }
+
+  .marker.playhead {
+    z-index: 4;
+  }
+
+  .marker.in,
+  .marker.out {
+    z-index: 3;
+  }
+
+  .marker.active .stem {
+    outline: 1px solid color-mix(in srgb, #fff 55%, transparent);
+  }
+
+  .marker.active.playhead .cap,
+  .marker.active.in .flag,
+  .marker.active.out .flag {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 60%, transparent);
   }
 
   .actions {
@@ -310,7 +406,6 @@
     gap: 0.5rem;
   }
 
-  .transport,
   .markers {
     display: flex;
     flex-wrap: wrap;
@@ -325,11 +420,6 @@
     border: 1px solid var(--border);
     color: var(--text);
     font-weight: 500;
-  }
-
-  button.secondary.play {
-    background: color-mix(in srgb, var(--accent) 22%, transparent);
-    border-color: var(--accent);
   }
 
   button.secondary:hover:not(:disabled) {
