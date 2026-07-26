@@ -147,8 +147,7 @@
     </label>
   {:else}
     <p class="note muted">
-      AAC audio in <code>.m4a</code> — good for slop-animator’s project audio track.
-      Max height and video audio toggle don’t apply.
+      AAC audio in <code>.m4a</code>. Max height and video audio toggle don’t apply.
     </p>
   {/if}
 

@@ -1,6 +1,6 @@
 # Slop Video Downloader
 
-Desktop app that turns a public YouTube URL into a short, animator-friendly **H.264 + AAC MP4** clip for **slop-animator** reference layers.
+Desktop app that turns a public YouTube URL into a short, browser-friendly **H.264 + AAC MP4** clip (or AAC **M4A** audio).
 
 Paste a URL → preview in-app → set in/out on a timeline → export a trimmed clip (default max height 1080p, audio on, save under `~/Movies/Slop Refs`).
 
@@ -72,8 +72,8 @@ Unit tests do **not** hit live YouTube; they cover URL validation, deps parsing,
 
 **Export types**
 
-- **Video (MP4)** — H.264 + optional AAC, animator video reference.
-- **Audio only (M4A)** — AAC soundtrack for the same in/out range; useful as slop-animator’s project audio track.
+- **Video (MP4)** — H.264 + optional AAC.
+- **Audio only (M4A)** — AAC soundtrack for the same in/out range.
 
 Keyboard (when focus is not in an input):
 

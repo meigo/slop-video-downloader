@@ -18,7 +18,7 @@ export type PreviewResult = {
   note?: string | null;
 };
 
-/** Video MP4 (animator reference) or audio-only AAC m4a (project audio track). */
+/** Video MP4 or audio-only AAC m4a. */
 export type ExportKind = "video" | "audio";
 
 export type ExportOpts = {
