@@ -1,8 +1,10 @@
 <script lang="ts">
   import { convertFileSrc } from "@tauri-apps/api/core";
   import FastForward from "@lucide/svelte/icons/fast-forward";
+  import Film from "@lucide/svelte/icons/film";
   import Pause from "@lucide/svelte/icons/pause";
   import Play from "@lucide/svelte/icons/play";
+  import Repeat from "@lucide/svelte/icons/repeat";
   import Rewind from "@lucide/svelte/icons/rewind";
   import Square from "@lucide/svelte/icons/square";
   import Volume1 from "@lucide/svelte/icons/volume-1";
@@ -11,12 +13,17 @@
   import { onDestroy } from "svelte";
   import { formatTimestamp } from "$lib/time";
 
+  /** Which transport mode is active while playing (full video vs selection loop). */
+  export type PlaybackMode = "full" | "selection";
+
   interface Props {
     /** Raw URL or filesystem path from preview. */
     src: string;
     /** `"stream"` uses src as-is; `"file"` goes through convertFileSrc. */
     mode: "stream" | "file";
     currentTime?: number;
+    /** Active play mode for UI chrome; null when idle/paused. */
+    playbackMode?: PlaybackMode | null;
     onError?: () => void;
     onDuration?: (duration: number) => void;
     /** Fired when play/pause state changes (for parent keyboard / loop logic). */
@@ -27,6 +34,7 @@
     src,
     mode,
     currentTime = $bindable(0),
+    playbackMode = null,
     onError,
     onDuration,
     onPlayState,
@@ -163,7 +171,13 @@
       playsinline
     ></video>
 
-    <div class="controls" role="toolbar" aria-label="Playback controls">
+    <div
+      class="controls"
+      class:mode-full={playbackMode === "full"}
+      class:mode-selection={playbackMode === "selection"}
+      role="toolbar"
+      aria-label="Playback controls"
+    >
       <div class="transport">
         <button
           type="button"
@@ -177,8 +191,15 @@
         <button
           type="button"
           class="ctrl primary"
-          title={paused ? "Play (Space)" : "Pause (Space)"}
-          aria-label={paused ? "Play" : "Pause"}
+          class:selection={playbackMode === "selection"}
+          title={
+            paused
+              ? "Play full video (Space)"
+              : playbackMode === "selection"
+                ? "Pause selection loop (Space)"
+                : "Pause full video (Space)"
+          }
+          aria-label={paused ? "Play full video" : "Pause"}
           onclick={onTogglePlay}
         >
           {#if paused}
@@ -200,6 +221,18 @@
           <FastForward size={ICON} strokeWidth={2} aria-hidden="true" />
         </button>
       </div>
+
+      {#if playbackMode === "full"}
+        <div class="mode-badge full" title="Playing the full video">
+          <Film size={14} strokeWidth={2} aria-hidden="true" />
+          <span>Full video</span>
+        </div>
+      {:else if playbackMode === "selection"}
+        <div class="mode-badge selection" title="Looping the in–out selection">
+          <Repeat size={14} strokeWidth={2} aria-hidden="true" />
+          <span>Selection</span>
+        </div>
+      {/if}
 
       <div class="time" aria-live="off">
         <span>{formatTimestamp(currentTime)}</span>
@@ -306,6 +339,47 @@
 
   button.ctrl.primary:hover:not(:disabled) {
     background: var(--accent-hover);
+  }
+
+  button.ctrl.primary.selection {
+    background: var(--selection);
+  }
+
+  button.ctrl.primary.selection:hover:not(:disabled) {
+    background: var(--selection-hover);
+  }
+
+  .mode-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    border: 1px solid transparent;
+  }
+
+  .mode-badge.full {
+    color: var(--accent-hover);
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+
+  .mode-badge.selection {
+    color: var(--selection-hover);
+    background: color-mix(in srgb, var(--selection) 18%, transparent);
+    border-color: color-mix(in srgb, var(--selection) 45%, transparent);
+  }
+
+  .controls.mode-selection {
+    box-shadow: inset 0 2px 0 0 var(--selection);
+  }
+
+  .controls.mode-full {
+    box-shadow: inset 0 2px 0 0 var(--accent);
   }
 
   .time {

@@ -43,6 +43,7 @@
 
   let player = $state<ReturnType<typeof VideoPlayer> | null>(null);
   let loopSelection = $state(false);
+  let playerPlaying = $state(false);
   let forceFileFallbackBusy = $state(false);
 
   const depsOk = $derived(!!deps && deps.ytdlp && deps.ffmpeg);
@@ -50,6 +51,11 @@
   const canExport = $derived(
     !!meta && !!preview && outPoint > inPoint && savePath.trim().length > 0 && !busy && !exporting,
   );
+  /** UI chrome: which play mode is live (null when paused/idle). */
+  const playbackMode = $derived(
+    !playerPlaying ? null : loopSelection ? ("selection" as const) : ("full" as const),
+  );
+  const selectionPlaying = $derived(playerPlaying && loopSelection);
 
   let unlistenProgress: UnlistenFn | null = null;
 
@@ -198,10 +204,13 @@
     if (loopSelection && player && !player.isPaused()) {
       loopSelection = false;
       player.pause();
+      status = "Paused";
       return;
     }
     loopSelection = false;
+    const willPlay = player?.isPaused() ?? true;
     player?.togglePlay();
+    status = willPlay ? "Playing full video" : "Paused";
   }
 
   function onStop() {
@@ -210,12 +219,28 @@
     onSeek(0);
   }
 
+  function onPlayState(playing: boolean) {
+    playerPlaying = playing;
+    // Pause from the player chrome ends selection loop (same as Space while looping).
+    if (!playing && loopSelection) {
+      loopSelection = false;
+    }
+  }
+
   function onPlaySelection() {
+    // Toggle off if selection loop is already running.
+    if (loopSelection && player && !player.isPaused()) {
+      loopSelection = false;
+      player.pause();
+      status = "Paused";
+      return;
+    }
     if (!(outPoint > inPoint)) return;
     loopSelection = true;
     player?.seek(inPoint);
     currentTime = inPoint;
     player?.play();
+    status = "Looping selection";
   }
 
   /** Navigation only — never start playback (unlike Play selection). */
@@ -385,7 +410,9 @@
             src={preview.url_or_path}
             mode={preview.mode}
             bind:currentTime
+            {playbackMode}
             onError={onPreviewError}
+            onPlayState={onPlayState}
           />
         {:else}
           <div class="preview-placeholder">
@@ -414,6 +441,7 @@
       bind:currentTime
       bind:inPoint
       bind:outPoint
+      {selectionPlaying}
       onSeek={onSeek}
       onSetIn={setInFromPlayhead}
       onSetOut={setOutFromPlayhead}

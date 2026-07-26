@@ -13,6 +13,8 @@
     currentTime: number;
     inPoint: number;
     outPoint: number;
+    /** True while selection-loop playback is active. */
+    selectionPlaying?: boolean;
     onSeek?: (t: number) => void;
     onSetIn?: () => void;
     onSetOut?: () => void;
@@ -27,6 +29,7 @@
     currentTime = $bindable(),
     inPoint = $bindable(),
     outPoint = $bindable(),
+    selectionPlaying = false,
     onSeek,
     onSetIn,
     onSetOut,
@@ -184,7 +187,7 @@
   const activeMode = $derived(dragMode ?? hoverMode);
 </script>
 
-<footer class="timeline" aria-label="Timeline">
+<footer class="timeline" class:selection-live={selectionPlaying} aria-label="Timeline">
   <div class="times">
     <span>{formatTimestamp(currentTime)}</span>
     <span class="muted">In {formatTimestamp(inPoint)} · Out {formatTimestamp(outPoint)}</span>
@@ -194,6 +197,7 @@
   <div
     class="track"
     class:grabbing={!!dragMode}
+    class:selection-live={selectionPlaying}
     bind:this={trackEl}
     role="slider"
     tabindex="0"
@@ -267,13 +271,19 @@
       </button>
       <button
         type="button"
-        class="secondary"
-        disabled={!(outPoint > inPoint)}
-        title="Loop play between in and out"
+        class="secondary selection-btn"
+        class:active={selectionPlaying}
+        disabled={!(outPoint > inPoint) && !selectionPlaying}
+        title={
+          selectionPlaying
+            ? "Stop selection loop"
+            : "Loop play between in and out"
+        }
+        aria-pressed={selectionPlaying}
         onclick={() => onPlaySelection?.()}
       >
         <Repeat size={ICON} strokeWidth={2} aria-hidden="true" />
-        <span>Play selection</span>
+        <span>{selectionPlaying ? "Looping selection" : "Play selection"}</span>
       </button>
     </div>
     <div class="markers">
@@ -344,6 +354,15 @@
     background: color-mix(in srgb, var(--accent) 55%, transparent);
     border-radius: 3px;
     pointer-events: none;
+  }
+
+  .track.selection-live .range {
+    background: color-mix(in srgb, var(--selection) 70%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--selection) 50%, transparent);
+  }
+
+  .timeline.selection-live {
+    border-color: color-mix(in srgb, var(--selection) 45%, var(--border));
   }
 
   /* Thin stems + small flags; grab radius is HIT_HALF_PX in script. */
@@ -468,6 +487,24 @@
   button.secondary:hover:not(:disabled) {
     background: color-mix(in srgb, var(--accent) 18%, transparent);
     border-color: var(--accent);
+  }
+
+  button.secondary.selection-btn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--selection) 18%, transparent);
+    border-color: var(--selection);
+  }
+
+  button.secondary.selection-btn.active {
+    background: var(--selection);
+    border-color: transparent;
+    color: #1a1400;
+    font-weight: 600;
+  }
+
+  button.secondary.selection-btn.active:hover:not(:disabled) {
+    background: var(--selection-hover);
+    border-color: transparent;
+    color: #1a1400;
   }
 
   button.secondary:disabled {

@@ -6,6 +6,9 @@
   --muted: #9a9aa3;
   --accent: #5b8cff;
   --accent-hover: #7aa3ff;
+  /** Selection-loop mode (distinct from full-video play). */
+  --selection: #d4a017;
+  --selection-hover: #e8b82a;
   --danger: #f07178;
   --disabled: #3a3a42;
 
