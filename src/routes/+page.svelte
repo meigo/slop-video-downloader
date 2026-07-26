@@ -1,6 +1,8 @@
 <script lang="ts">
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import { onDestroy, onMount } from "svelte";
+  import Film from "@lucide/svelte/icons/film";
+  import LoaderCircle from "@lucide/svelte/icons/loader-circle";
   import ExportPanel from "$lib/components/ExportPanel.svelte";
   import MissingDeps from "$lib/components/MissingDeps.svelte";
   import StatusLine from "$lib/components/StatusLine.svelte";
@@ -312,7 +314,10 @@
 </script>
 
 {#if checkingDeps && !deps}
-  <div class="boot">Checking tools…</div>
+  <div class="boot">
+    <LoaderCircle class="spin" size={22} strokeWidth={2} aria-hidden="true" />
+    <span>Checking tools…</span>
+  </div>
 {:else if deps && !depsOk}
   <MissingDeps
     {deps}
@@ -350,6 +355,7 @@
           />
         {:else}
           <div class="preview-placeholder">
+            <Film size={36} strokeWidth={1.5} class="placeholder-icon" aria-hidden="true" />
             <p>Video preview</p>
             <p class="muted">Fetch a URL to load a preview</p>
           </div>
@@ -388,9 +394,22 @@
 <style>
   .boot {
     min-height: 100vh;
-    display: grid;
-    place-items: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.65rem;
     color: var(--muted);
+  }
+
+  .boot :global(.spin) {
+    animation: spin 0.9s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 
   .app {
@@ -434,6 +453,12 @@
     border-radius: 10px;
     padding: 1rem;
     text-align: center;
+  }
+
+  .preview-placeholder :global(.placeholder-icon) {
+    color: var(--muted);
+    opacity: 0.7;
+    margin-bottom: 0.35rem;
   }
 
   .muted {

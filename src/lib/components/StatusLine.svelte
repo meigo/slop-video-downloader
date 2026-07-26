@@ -1,4 +1,7 @@
 <script lang="ts">
+  import CircleAlert from "@lucide/svelte/icons/circle-alert";
+  import Info from "@lucide/svelte/icons/info";
+
   interface Props {
     status: string;
     error: string | null;
@@ -11,8 +14,10 @@
 
 <div class="status-line" class:error={!!error} role="status">
   {#if error}
+    <CircleAlert size={15} strokeWidth={2} aria-hidden="true" />
     <span class="err">{error}</span>
   {:else}
+    <Info size={15} strokeWidth={2} class="info-icon" aria-hidden="true" />
     <span class="meta">
       {#if title}
         <strong>{title}</strong>
@@ -32,10 +37,24 @@
     min-height: 1.5rem;
     font-size: 0.9rem;
     color: var(--muted);
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
   }
 
   .status-line.error {
     color: var(--danger);
+  }
+
+  .status-line :global(.info-icon) {
+    flex-shrink: 0;
+    margin-top: 0.15rem;
+    opacity: 0.75;
+  }
+
+  .status-line :global(svg) {
+    flex-shrink: 0;
+    margin-top: 0.15rem;
   }
 
   .meta {

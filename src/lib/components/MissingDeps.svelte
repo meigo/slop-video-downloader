@@ -1,4 +1,9 @@
 <script lang="ts">
+  import Check from "@lucide/svelte/icons/check";
+  import RefreshCw from "@lucide/svelte/icons/refresh-cw";
+  import Terminal from "@lucide/svelte/icons/terminal";
+  import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
+  import X from "@lucide/svelte/icons/x";
   import type { DepsStatus } from "$lib/types";
 
   interface Props {
@@ -17,23 +22,46 @@
 
 <div class="missing-deps">
   <div class="card">
-    <h1>Missing tools</h1>
+    <h1>
+      <TriangleAlert size={22} strokeWidth={2} aria-hidden="true" />
+      <span>Missing tools</span>
+    </h1>
     <p>This app needs yt-dlp and ffmpeg on your PATH.</p>
 
-    <pre class="hint">brew install yt-dlp ffmpeg</pre>
+    <pre class="hint">
+      <Terminal size={16} strokeWidth={2} class="hint-icon" aria-hidden="true" />
+      <code>brew install yt-dlp ffmpeg</code>
+    </pre>
 
     <ul class="tools">
-      <li>
-        <strong>yt-dlp:</strong>
-        {toolLine(deps.ytdlp, deps.ytdlp_path)}
+      <li class:ok={deps.ytdlp} class:bad={!deps.ytdlp}>
+        {#if deps.ytdlp}
+          <Check size={16} strokeWidth={2.25} aria-hidden="true" />
+        {:else}
+          <X size={16} strokeWidth={2.25} aria-hidden="true" />
+        {/if}
+        <span>
+          <strong>yt-dlp:</strong>
+          {toolLine(deps.ytdlp, deps.ytdlp_path)}
+        </span>
       </li>
-      <li>
-        <strong>ffmpeg:</strong>
-        {toolLine(deps.ffmpeg, deps.ffmpeg_path)}
+      <li class:ok={deps.ffmpeg} class:bad={!deps.ffmpeg}>
+        {#if deps.ffmpeg}
+          <Check size={16} strokeWidth={2.25} aria-hidden="true" />
+        {:else}
+          <X size={16} strokeWidth={2.25} aria-hidden="true" />
+        {/if}
+        <span>
+          <strong>ffmpeg:</strong>
+          {toolLine(deps.ffmpeg, deps.ffmpeg_path)}
+        </span>
       </li>
     </ul>
 
-    <button type="button" onclick={onRecheck}>Recheck</button>
+    <button type="button" onclick={onRecheck}>
+      <RefreshCw size={16} strokeWidth={2} aria-hidden="true" />
+      <span>Recheck</span>
+    </button>
   </div>
 </div>
 
@@ -58,6 +86,10 @@
   h1 {
     margin: 0 0 0.5rem;
     font-size: 1.35rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--danger);
   }
 
   p {
@@ -74,6 +106,18 @@
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 0.9rem;
     overflow-x: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+  }
+
+  .hint :global(.hint-icon) {
+    flex-shrink: 0;
+    color: var(--muted);
+  }
+
+  .hint code {
+    font: inherit;
   }
 
   .tools {
@@ -85,10 +129,27 @@
   }
 
   .tools li {
-    margin-bottom: 0.35rem;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.45rem;
+  }
+
+  .tools li.ok {
+    color: #7dcea0;
+  }
+
+  .tools li.bad {
+    color: var(--danger);
   }
 
   .tools strong {
     color: var(--text);
+  }
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
   }
 </style>

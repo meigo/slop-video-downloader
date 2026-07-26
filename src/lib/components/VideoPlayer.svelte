@@ -1,5 +1,13 @@
 <script lang="ts">
   import { convertFileSrc } from "@tauri-apps/api/core";
+  import FastForward from "@lucide/svelte/icons/fast-forward";
+  import Pause from "@lucide/svelte/icons/pause";
+  import Play from "@lucide/svelte/icons/play";
+  import Rewind from "@lucide/svelte/icons/rewind";
+  import Square from "@lucide/svelte/icons/square";
+  import Volume1 from "@lucide/svelte/icons/volume-1";
+  import Volume2 from "@lucide/svelte/icons/volume-2";
+  import VolumeX from "@lucide/svelte/icons/volume-x";
   import { onDestroy } from "svelte";
   import { formatTimestamp } from "$lib/time";
 
@@ -34,6 +42,7 @@
   const displaySrc = $derived(mode === "file" ? convertFileSrc(src) : src);
 
   const SKIP_SECS = 5;
+  const ICON = 18;
 
   export function play() {
     void el?.play();
@@ -163,7 +172,7 @@
           aria-label="Skip back {SKIP_SECS} seconds"
           onclick={() => onSkip(-SKIP_SECS)}
         >
-          ⏪
+          <Rewind size={ICON} strokeWidth={2} aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -172,10 +181,14 @@
           aria-label={paused ? "Play" : "Pause"}
           onclick={onTogglePlay}
         >
-          {paused ? "▶" : "❚❚"}
+          {#if paused}
+            <Play size={ICON} strokeWidth={2} aria-hidden="true" />
+          {:else}
+            <Pause size={ICON} strokeWidth={2} aria-hidden="true" />
+          {/if}
         </button>
         <button type="button" class="ctrl" title="Stop" aria-label="Stop" onclick={onStop}>
-          ⏹
+          <Square size={16} strokeWidth={2.25} aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -184,7 +197,7 @@
           aria-label="Skip forward {SKIP_SECS} seconds"
           onclick={() => onSkip(SKIP_SECS)}
         >
-          ⏩
+          <FastForward size={ICON} strokeWidth={2} aria-hidden="true" />
         </button>
       </div>
 
@@ -202,7 +215,13 @@
           aria-label={muted || volume === 0 ? "Unmute" : "Mute"}
           onclick={onToggleMute}
         >
-          {muted || volume === 0 ? "🔇" : volume < 0.5 ? "🔉" : "🔊"}
+          {#if muted || volume === 0}
+            <VolumeX size={ICON} strokeWidth={2} aria-hidden="true" />
+          {:else if volume < 0.5}
+            <Volume1 size={ICON} strokeWidth={2} aria-hidden="true" />
+          {:else}
+            <Volume2 size={ICON} strokeWidth={2} aria-hidden="true" />
+          {/if}
         </button>
         <input
           type="range"
@@ -269,7 +288,6 @@
     background: transparent;
     border: 1px solid var(--border);
     color: var(--text);
-    font-size: 0.85rem;
     line-height: 1;
     border-radius: 8px;
   }
@@ -284,7 +302,6 @@
     background: var(--accent);
     border-color: transparent;
     color: #fff;
-    font-size: 0.95rem;
   }
 
   button.ctrl.primary:hover:not(:disabled) {

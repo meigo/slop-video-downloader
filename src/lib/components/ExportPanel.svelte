@@ -1,5 +1,10 @@
 <script lang="ts">
   import { open } from "@tauri-apps/plugin-dialog";
+  import Download from "@lucide/svelte/icons/download";
+  import Film from "@lucide/svelte/icons/film";
+  import FolderOpen from "@lucide/svelte/icons/folder-open";
+  import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+  import Volume2 from "@lucide/svelte/icons/volume-2";
   import { formatTimestamp } from "$lib/time";
 
   interface Props {
@@ -27,6 +32,7 @@
   }: Props = $props();
 
   const clipDuration = $derived(Math.max(0, outPoint - inPoint));
+  const ICON = 16;
 
   function onHeightChange(event: Event) {
     const value = (event.currentTarget as HTMLSelectElement).value;
@@ -51,7 +57,10 @@
 </script>
 
 <aside class="export-panel">
-  <h2>Export</h2>
+  <h2>
+    <Film size={18} strokeWidth={2} aria-hidden="true" />
+    <span>Export</span>
+  </h2>
 
   <dl class="range">
     <div>
@@ -84,6 +93,7 @@
 
   <label class="field checkbox">
     <input type="checkbox" bind:checked={includeAudio} />
+    <Volume2 size={ICON} strokeWidth={2} aria-hidden="true" />
     <span>Include audio</span>
   </label>
 
@@ -92,7 +102,8 @@
     <div class="path-row">
       <input type="text" bind:value={savePath} placeholder="Export folder path" />
       <button type="button" class="browse" onclick={() => void pickFolder()} disabled={exporting}>
-        Browse…
+        <FolderOpen size={ICON} strokeWidth={2} aria-hidden="true" />
+        <span>Browse</span>
       </button>
     </div>
   </div>
@@ -103,7 +114,13 @@
     disabled={!canExport || exporting}
     onclick={() => onExport?.()}
   >
-    {exporting ? "Exporting…" : "Export clip"}
+    {#if exporting}
+      <LoaderCircle class="spin" size={ICON} strokeWidth={2} aria-hidden="true" />
+      <span>Exporting…</span>
+    {:else}
+      <Download size={ICON} strokeWidth={2} aria-hidden="true" />
+      <span>Export clip</span>
+    {/if}
   </button>
 </aside>
 
@@ -123,6 +140,9 @@
     margin: 0;
     font-size: 1rem;
     font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
   }
 
   .range {
@@ -162,7 +182,7 @@
   .field.checkbox {
     flex-direction: row;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.45rem;
   }
 
   .field.checkbox input {
@@ -183,6 +203,9 @@
 
   button.browse {
     flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
     background: transparent;
     border: 1px solid var(--border);
     color: var(--text);
@@ -196,5 +219,19 @@
   .export-btn {
     margin-top: 0.25rem;
     width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+  }
+
+  .export-btn :global(.spin) {
+    animation: spin 0.9s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 </style>

@@ -1,4 +1,10 @@
 <script lang="ts">
+  import Pause from "@lucide/svelte/icons/pause";
+  import Play from "@lucide/svelte/icons/play";
+  import Repeat from "@lucide/svelte/icons/repeat";
+  import Square from "@lucide/svelte/icons/square";
+  import ArrowLeftToLine from "@lucide/svelte/icons/arrow-left-to-line";
+  import ArrowRightToLine from "@lucide/svelte/icons/arrow-right-to-line";
   import { clampRange, formatTimestamp } from "$lib/time";
 
   interface Props {
@@ -34,6 +40,8 @@
 
   let trackEl = $state<HTMLDivElement | null>(null);
   let dragMode = $state<"playhead" | "in" | "out" | null>(null);
+
+  const ICON = 16;
 
   function pct(t: number): number {
     if (!(duration > 0)) return 0;
@@ -153,7 +161,13 @@
         title={playing ? "Pause (Space)" : "Play (Space)"}
         onclick={() => onPlayPause?.()}
       >
-        {playing ? "Pause" : "Play"}
+        {#if playing}
+          <Pause size={ICON} strokeWidth={2} aria-hidden="true" />
+          <span>Pause</span>
+        {:else}
+          <Play size={ICON} strokeWidth={2} aria-hidden="true" />
+          <span>Play</span>
+        {/if}
       </button>
       <button
         type="button"
@@ -162,7 +176,8 @@
         title="Stop and return to start"
         onclick={() => onStop?.()}
       >
-        Stop
+        <Square size={ICON} strokeWidth={2} aria-hidden="true" />
+        <span>Stop</span>
       </button>
       <button
         type="button"
@@ -171,12 +186,19 @@
         title="Loop play between in and out"
         onclick={() => onPlaySelection?.()}
       >
-        Play selection
+        <Repeat size={ICON} strokeWidth={2} aria-hidden="true" />
+        <span>Play selection</span>
       </button>
     </div>
     <div class="markers">
-      <button type="button" class="secondary" onclick={() => onSetIn?.()}>Set In (I)</button>
-      <button type="button" class="secondary" onclick={() => onSetOut?.()}>Set Out (O)</button>
+      <button type="button" class="secondary" onclick={() => onSetIn?.()}>
+        <ArrowLeftToLine size={ICON} strokeWidth={2} aria-hidden="true" />
+        <span>Set In (I)</span>
+      </button>
+      <button type="button" class="secondary" onclick={() => onSetOut?.()}>
+        <ArrowRightToLine size={ICON} strokeWidth={2} aria-hidden="true" />
+        <span>Set Out (O)</span>
+      </button>
     </div>
   </div>
 </footer>
@@ -296,6 +318,9 @@
   }
 
   button.secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
     background: transparent;
     border: 1px solid var(--border);
     color: var(--text);
