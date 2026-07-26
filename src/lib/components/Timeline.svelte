@@ -16,6 +16,8 @@
     onSeek?: (t: number) => void;
     onSetIn?: () => void;
     onSetOut?: () => void;
+    onJumpToIn?: () => void;
+    onJumpToOut?: () => void;
     onPlaySelection?: () => void;
     onInOutChange?: (inPoint: number, outPoint: number) => void;
   }
@@ -28,6 +30,8 @@
     onSeek,
     onSetIn,
     onSetOut,
+    onJumpToIn,
+    onJumpToOut,
     onPlaySelection,
     onInOutChange,
   }: Props = $props();
@@ -161,12 +165,14 @@
 
   function jumpToIn() {
     if (!(duration > 0)) return;
-    applySeek(inPoint);
+    if (onJumpToIn) onJumpToIn();
+    else applySeek(inPoint);
   }
 
   function jumpToOut() {
     if (!(duration > 0)) return;
-    applySeek(outPoint);
+    if (onJumpToOut) onJumpToOut();
+    else applySeek(outPoint);
   }
 
   const inPct = $derived(pct(inPoint));

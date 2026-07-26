@@ -210,14 +210,26 @@
     player?.play();
   }
 
+  /** Navigation only — never start playback (unlike Play selection). */
+  function jumpToIn() {
+    loopSelection = false;
+    onSeek(inPoint);
+  }
+
+  function jumpToOut() {
+    loopSelection = false;
+    onSeek(outPoint);
+  }
+
   // Loop playhead between in/out while "Play selection" is active.
+  // Do not call play() if already paused — landing on out (e.g. To Out) must not auto-start.
   $effect(() => {
     if (!loopSelection) return;
-    if (currentTime >= outPoint - 0.04) {
-      player?.seek(inPoint);
-      currentTime = inPoint;
-      player?.play();
-    }
+    if (currentTime < outPoint - 0.04) return;
+    const wasPlaying = player ? !player.isPaused() : false;
+    player?.seek(inPoint);
+    currentTime = inPoint;
+    if (wasPlaying) player?.play();
   });
 
   function onKeyDown(event: KeyboardEvent) {
@@ -396,6 +408,8 @@
       onSeek={onSeek}
       onSetIn={setInFromPlayhead}
       onSetOut={setOutFromPlayhead}
+      onJumpToIn={jumpToIn}
+      onJumpToOut={jumpToOut}
       onPlaySelection={onPlaySelection}
     />
   </div>
