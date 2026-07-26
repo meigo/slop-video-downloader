@@ -42,22 +42,14 @@ Also install a recent Node LTS and the [Rust toolchain](https://rustup.rs/). Tau
 - No login / cookies UI — private or age-gated pages will fail via yt-dlp.
 - If section download isn’t supported for a site, export may **download more of the media** before trimming.
 
-**Vimeo note:** Vimeo currently requires yt-dlp **browser impersonation** (`curl_cffi`). Homebrew’s `yt-dlp` often reports *no impersonate target is available* and fails with OAuth **401**. Prefer one of:
+**Vimeo note:** Anonymous Vimeo access is currently broken in yt-dlp (OAuth 401). This app uses **Chrome cookies** for Vimeo (`--cookies-from-browser chrome`):
 
-```bash
-# Option A — pipx (includes curl-cffi)
-brew install pipx && pipx ensurepath
-pipx install "yt-dlp[default,curl-cffi]"
+1. Install **Google Chrome** if needed.
+2. Open **https://vimeo.com** in Chrome and **log in** (and open the video so it plays).
+3. Retry **Fetch** in Slop Video Downloader.
+4. If macOS asks to unlock the **Keychain** for Chrome cookies, choose **Allow**.
 
-# Option B — official macOS binary from GitHub Releases
-# https://github.com/yt-dlp/yt-dlp/releases  → yt-dlp_macos
-```
-
-Then verify:
-
-```bash
-yt-dlp --list-impersonate-targets   # Chrome/Safari should be available
-```
+YouTube does not need this.
 
 **Notes**
 

@@ -1,5 +1,6 @@
 //! yt-dlp integration: metadata fetch and hybrid preview resolve.
 
+use crate::source::SourceFamily;
 use serde::Serialize;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -30,41 +31,78 @@ pub struct PreviewResult {
     pub note: Option<String>,
 }
 
+/// Extra yt-dlp flags some hosts need. Vimeo’s anonymous OAuth client is currently
+/// broken; browser cookies work (see yt-dlp#17271).
+pub fn ytdlp_site_args(url: &str) -> Vec<String> {
+    match crate::source::source_family(url) {
+        Some(SourceFamily::Vimeo) => vec![
+            "--cookies-from-browser".into(),
+            "chrome".into(),
+        ],
+        _ => Vec::new(),
+    }
+}
+
+/// Insert site-specific args immediately before the trailing `--` URL separator.
+pub fn with_site_args(url: &str, mut args: Vec<String>) -> Vec<String> {
+    let site = ytdlp_site_args(url);
+    if site.is_empty() {
+        return args;
+    }
+    if let Some(pos) = args.iter().position(|a| a == "--") {
+        for (i, a) in site.into_iter().enumerate() {
+            args.insert(pos + i, a);
+        }
+    } else {
+        args.extend(site);
+    }
+    args
+}
+
 /// CLI args for `yt-dlp` metadata dump (`-J` = dump single JSON).
 pub fn metadata_args(url: &str) -> Vec<String> {
-    vec![
-        "-J".into(),
-        "--no-playlist".into(),
-        "--".into(),
-        url.into(),
-    ]
+    with_site_args(
+        url,
+        vec![
+            "-J".into(),
+            "--no-playlist".into(),
+            "--".into(),
+            url.into(),
+        ],
+    )
 }
 
 /// CLI args for progressive stream URL discovery (`-g` = get URL only).
 pub fn stream_url_args(url: &str) -> Vec<String> {
-    vec![
-        "-g".into(),
-        "-f".into(),
-        STREAM_FORMAT.into(),
-        "--no-playlist".into(),
-        "--".into(),
-        url.into(),
-    ]
+    with_site_args(
+        url,
+        vec![
+            "-g".into(),
+            "-f".into(),
+            STREAM_FORMAT.into(),
+            "--no-playlist".into(),
+            "--".into(),
+            url.into(),
+        ],
+    )
 }
 
 /// CLI args for ≤720p preview download to an output template.
 pub fn preview_download_args(url: &str, out_template: &str) -> Vec<String> {
-    vec![
-        "-f".into(),
-        PREVIEW_DL_FORMAT.into(),
-        "--no-playlist".into(),
-        "-o".into(),
-        out_template.into(),
-        "--merge-output-format".into(),
-        "mp4".into(),
-        "--".into(),
-        url.into(),
-    ]
+    with_site_args(
+        url,
+        vec![
+            "-f".into(),
+            PREVIEW_DL_FORMAT.into(),
+            "--no-playlist".into(),
+            "-o".into(),
+            out_template.into(),
+            "--merge-output-format".into(),
+            "mp4".into(),
+            "--".into(),
+            url.into(),
+        ],
+    )
 }
 
 fn truncate_err(stderr: &str) -> String {
@@ -80,28 +118,36 @@ pub fn format_ytdlp_error(stderr: &str) -> String {
 
     let lower = trimmed.to_ascii_lowercase();
 
-    // Vimeo currently requires TLS fingerprint impersonation; Homebrew yt-dlp often lacks curl_cffi.
+    // Vimeo: anonymous OAuth is broken; Chrome cookies usually work.
     // https://github.com/yt-dlp/yt-dlp/issues/17271
     if lower.contains("vimeo")
         && (lower.contains("oauth")
             || lower.contains("401")
             || lower.contains("unauthorized")
-            || lower.contains("impersonat"))
+            || lower.contains("impersonat")
+            || lower.contains("could not copy"))
     {
-        return "Vimeo blocked this request (OAuth/impersonation). \
-Homebrew’s yt-dlp often cannot do this. Install a build with curl_cffi, e.g.:\n\n\
-  pipx install \"yt-dlp[default,curl-cffi]\"\n\n\
-or download yt-dlp_macos from https://github.com/yt-dlp/yt-dlp/releases\n\n\
-Then check: yt-dlp --list-impersonate-targets\n\
-(You should see Chrome/Safari targets as available.)".to_string();
+        return "Vimeo needs a logged-in browser session. \
+Open Chrome, log into vimeo.com, then try again.\n\n\
+This app reads Vimeo cookies from Chrome (`yt-dlp --cookies-from-browser chrome`). \
+macOS may ask to unlock the Keychain — choose Allow.\n\n\
+If it still fails: update yt-dlp, ensure Chrome is installed, and that you can play the video in Chrome.".to_string();
+    }
+
+    if lower.contains("could not find") && lower.contains("cookie")
+        || lower.contains("failed to load cookies")
+        || (lower.contains("cookies-from-browser") && lower.contains("error"))
+    {
+        return "Could not read browser cookies. Install Chrome, log into the site there, \
+then allow Keychain access if macOS prompts.".to_string();
     }
 
     if lower.contains("impersonat")
         && (lower.contains("unavailable") || lower.contains("no impersonate"))
     {
-        return "yt-dlp needs browser impersonation for this site, but no target is installed. \
-See: https://github.com/yt-dlp/yt-dlp#impersonation\n\n\
-  pipx install \"yt-dlp[default,curl-cffi]\"".to_string();
+        return "yt-dlp needs browser impersonation for this site. \
+Install curl_cffi support, e.g. pipx install \"yt-dlp[default,curl-cffi]\" \
+or use the official yt-dlp_macos binary.".to_string();
     }
 
     if trimmed.chars().count() <= STDERR_TRUNCATE {
@@ -377,7 +423,21 @@ mod tests {
         let msg = format_ytdlp_error(
             "ERROR: [vimeo] 184782959: Failed to fetch macos OAuth token: HTTP Error 401: Unauthorized",
         );
-        assert!(msg.contains("Vimeo blocked"));
-        assert!(msg.contains("curl-cffi") || msg.contains("impersonat"));
+        assert!(msg.contains("Vimeo"));
+        assert!(msg.contains("Chrome") || msg.contains("cookies"));
+    }
+
+    #[test]
+    fn vimeo_metadata_args_include_chrome_cookies() {
+        let a = metadata_args("https://vimeo.com/184782959");
+        assert!(a.contains(&"--cookies-from-browser".to_string()));
+        assert!(a.contains(&"chrome".to_string()));
+        assert_eq!(a.last().map(String::as_str), Some("https://vimeo.com/184782959"));
+    }
+
+    #[test]
+    fn youtube_metadata_args_skip_cookies() {
+        let a = metadata_args("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+        assert!(!a.contains(&"--cookies-from-browser".to_string()));
     }
 }

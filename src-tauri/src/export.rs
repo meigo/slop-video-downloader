@@ -65,39 +65,45 @@ pub fn section_download_args(
     out_template: &str,
 ) -> Vec<String> {
     let section = format!("*{start_secs}-{end_secs}");
-    vec![
-        "--no-playlist".into(),
-        // Force a real download into -o (never print URLs / invoke external players).
-        "--newline".into(),
-        "--download-sections".into(),
-        section,
-        "-f".into(),
-        SECTION_FORMAT.into(),
-        "--merge-output-format".into(),
-        "mp4".into(),
-        // Prefer remux of section into a single local file.
-        "--force-keyframes-at-cuts".into(),
-        "-o".into(),
-        out_template.into(),
-        "--".into(),
-        url.into(),
-    ]
+    crate::ytdlp::with_site_args(
+        url,
+        vec![
+            "--no-playlist".into(),
+            // Force a real download into -o (never print URLs / invoke external players).
+            "--newline".into(),
+            "--download-sections".into(),
+            section,
+            "-f".into(),
+            SECTION_FORMAT.into(),
+            "--merge-output-format".into(),
+            "mp4".into(),
+            // Prefer remux of section into a single local file.
+            "--force-keyframes-at-cuts".into(),
+            "-o".into(),
+            out_template.into(),
+            "--".into(),
+            url.into(),
+        ],
+    )
 }
 
 /// Full media download (no section) when `--download-sections` fails for a site.
 pub fn full_download_args(url: &str, out_template: &str) -> Vec<String> {
-    vec![
-        "--no-playlist".into(),
-        "--newline".into(),
-        "-f".into(),
-        SECTION_FORMAT.into(),
-        "--merge-output-format".into(),
-        "mp4".into(),
-        "-o".into(),
-        out_template.into(),
-        "--".into(),
-        url.into(),
-    ]
+    crate::ytdlp::with_site_args(
+        url,
+        vec![
+            "--no-playlist".into(),
+            "--newline".into(),
+            "-f".into(),
+            SECTION_FORMAT.into(),
+            "--merge-output-format".into(),
+            "mp4".into(),
+            "-o".into(),
+            out_template.into(),
+            "--".into(),
+            url.into(),
+        ],
+    )
 }
 
 /// ffmpeg args: H.264 re-encode, optional scale/audio strip, faststart.
