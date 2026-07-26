@@ -31,11 +31,12 @@ pub struct PreviewResult {
     pub note: Option<String>,
 }
 
-/// Extra yt-dlp flags some hosts need. Vimeo’s anonymous OAuth client is currently
-/// broken; browser cookies work (see yt-dlp#17271).
+/// Extra yt-dlp flags some hosts need.
+/// Vimeo anonymous OAuth is broken; X often needs a logged-in session.
+/// Chrome cookies work for both in practice.
 pub fn ytdlp_site_args(url: &str) -> Vec<String> {
     match crate::source::source_family(url) {
-        Some(SourceFamily::Vimeo) => vec![
+        Some(SourceFamily::Vimeo) | Some(SourceFamily::X) => vec![
             "--cookies-from-browser".into(),
             "chrome".into(),
         ],
@@ -129,9 +130,25 @@ pub fn format_ytdlp_error(stderr: &str) -> String {
     {
         return "Vimeo needs a logged-in browser session. \
 Open Chrome, log into vimeo.com, then try again.\n\n\
-This app reads Vimeo cookies from Chrome (`yt-dlp --cookies-from-browser chrome`). \
-macOS may ask to unlock the Keychain — choose Allow.\n\n\
-If it still fails: update yt-dlp, ensure Chrome is installed, and that you can play the video in Chrome.".to_string();
+This app reads cookies from Chrome (`yt-dlp --cookies-from-browser chrome`). \
+macOS may ask to unlock the Keychain — choose Allow.".to_string();
+    }
+
+    // X / Twitter: guest token / auth failures
+    if (lower.contains("[twitter]") || lower.contains("x.com") || lower.contains("twitter"))
+        && (lower.contains("401")
+            || lower.contains("403")
+            || lower.contains("unauthorized")
+            || lower.contains("cookie")
+            || lower.contains("login")
+            || lower.contains("authenticated")
+            || lower.contains("no video could be found"))
+    {
+        return "X (Twitter) needs a logged-in Chrome session and a post that actually contains video.\n\n\
+1. Open Chrome and log into x.com\n\
+2. Open the post and confirm the video plays\n\
+3. Retry Fetch (allow Keychain access if prompted)\n\n\
+Text-only or image-only posts will fail (no video stream).".to_string();
     }
 
     if lower.contains("could not find") && lower.contains("cookie")

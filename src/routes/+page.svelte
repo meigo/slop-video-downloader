@@ -29,7 +29,7 @@
   let url = $state("");
   let meta = $state<VideoMeta | null>(null);
   let preview = $state<PreviewResult | null>(null);
-  let status = $state("Paste a YouTube or Vimeo URL and click Fetch");
+  let status = $state("Paste a YouTube, Vimeo, or X URL and click Fetch");
   let error = $state<string | null>(null);
   let busy = $state(false);
   let exporting = $state(false);

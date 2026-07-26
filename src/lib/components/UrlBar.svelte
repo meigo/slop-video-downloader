@@ -22,7 +22,7 @@
     <Link2 class="lead-icon" size={16} strokeWidth={2} aria-hidden="true" />
     <input
       type="url"
-      placeholder="Paste a YouTube or Vimeo URL…"
+      placeholder="Paste a YouTube, Vimeo, or X URL…"
       bind:value={url}
       disabled={busy}
       aria-label="Video URL"

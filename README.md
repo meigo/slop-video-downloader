@@ -37,19 +37,13 @@ Also install a recent Node LTS and the [Rust toolchain](https://rustup.rs/). Tau
 
 **Supported sources**
 
-- **YouTube** and **Vimeo** (public videos only).
-- Other sites are rejected with a clear message until allowlisted.
-- No login / cookies UI — private or age-gated pages will fail via yt-dlp.
+- **YouTube**, **Vimeo**, and **X (Twitter)** posts that contain video.
+- Other sites are rejected until allowlisted.
+- **Vimeo** and **X** use Chrome cookies (`--cookies-from-browser chrome`): log into the site in Chrome, open the video/post, then Fetch. Allow Keychain access if macOS prompts.
+- Text-only / image-only X posts fail (no video stream).
 - If section download isn’t supported for a site, export may **download more of the media** before trimming.
 
-**Vimeo note:** Anonymous Vimeo access is currently broken in yt-dlp (OAuth 401). This app uses **Chrome cookies** for Vimeo (`--cookies-from-browser chrome`):
-
-1. Install **Google Chrome** if needed.
-2. Open **https://vimeo.com** in Chrome and **log in** (and open the video so it plays).
-3. Retry **Fetch** in Slop Video Downloader.
-4. If macOS asks to unlock the **Keychain** for Chrome cookies, choose **Allow**.
-
-YouTube does not need this.
+**YouTube** usually works without cookies.
 
 **Notes**
 
@@ -92,7 +86,7 @@ Unit tests do **not** hit live YouTube; they cover URL validation, deps parsing,
 
 1. Launch the app (`npm run tauri dev` or a built binary).
 2. Confirm yt-dlp and ffmpeg are detected (or follow the install guidance if not).
-3. Paste a **public YouTube or Vimeo URL** and click **Fetch**.
+3. Paste a **YouTube, Vimeo, or X** video URL and click **Fetch**.
 4. Wait for metadata and preview (stream first; falls back to a local file if streaming fails).
 5. Set **in** and **out** on the timeline (drag handles, **Set In** / **Set Out**, or keys **I** / **O**).
 6. Optionally choose **export type** (video MP4 or audio-only M4A), max height / include audio (video only), and output folder (defaults: 1080, audio on, `~/Movies/Slop Refs`).

@@ -1,5 +1,5 @@
-/** Supported source families (public videos only). */
-export type SourceFamily = "youtube" | "vimeo";
+/** Supported source families (public videos only where possible). */
+export type SourceFamily = "youtube" | "vimeo" | "x";
 
 const YOUTUBE_HOSTS = new Set([
   "youtube.com",
@@ -11,11 +11,21 @@ const YOUTUBE_HOSTS = new Set([
 
 const VIMEO_HOSTS = new Set(["vimeo.com", "www.vimeo.com", "player.vimeo.com"]);
 
+const X_HOSTS = new Set([
+  "x.com",
+  "www.x.com",
+  "twitter.com",
+  "www.twitter.com",
+  "mobile.twitter.com",
+]);
+
 const YT_VIDEO_ID_RE = /^[A-Za-z0-9_-]{11}$/;
 const VIMEO_ID_RE = /^\d+$/;
+/** Snowflake tweet/status id */
+const X_STATUS_ID_RE = /^\d{5,30}$/;
 
 export const UNSUPPORTED_SITE_MESSAGE =
-  "Unsupported site in this version. Supported: YouTube, Vimeo (public videos).";
+  "Unsupported site in this version. Supported: YouTube, Vimeo, X (Twitter) — public videos; X/Vimeo may need Chrome login.";
 
 function parseHttpUrl(url: string): URL | null {
   try {
@@ -65,12 +75,28 @@ function extractVimeoId(url: URL): string | null {
   return null;
 }
 
+/**
+ * X/Twitter status id from:
+ * - /user/status/ID
+ * - /i/status/ID
+ * - /i/web/status/ID
+ */
+function extractXStatusId(url: URL): string | null {
+  const parts = url.pathname.split("/").filter(Boolean);
+  const statusIdx = parts.indexOf("status");
+  if (statusIdx >= 0 && parts[statusIdx + 1] && X_STATUS_ID_RE.test(parts[statusIdx + 1])) {
+    return parts[statusIdx + 1];
+  }
+  return null;
+}
+
 export function sourceFamily(url: string): SourceFamily | null {
   const parsed = parseHttpUrl(url);
   if (!parsed) return null;
   const host = parsed.hostname.toLowerCase();
   if (YOUTUBE_HOSTS.has(host)) return "youtube";
   if (VIMEO_HOSTS.has(host)) return "vimeo";
+  if (X_HOSTS.has(host)) return "x";
   return null;
 }
 
@@ -82,7 +108,8 @@ export function isSupportedUrl(url: string): boolean {
 /**
  * Normalize to a stable https URL for yt-dlp, or null if unsupported.
  * YouTube → https://www.youtube.com/watch?v=ID
- * Vimeo → https://vimeo.com/{id} when parseable
+ * Vimeo → https://vimeo.com/{id}
+ * X → https://x.com/i/status/{id}
  */
 export function normalizeSourceUrl(url: string): string | null {
   const parsed = parseHttpUrl(url);
@@ -99,14 +126,20 @@ export function normalizeSourceUrl(url: string): string | null {
     return `https://www.youtube.com/watch?v=${id}`;
   }
 
-  // vimeo
-  if (!VIMEO_HOSTS.has(host)) return null;
-  const id = extractVimeoId(parsed);
-  if (id) {
-    return `https://vimeo.com/${id}`;
+  if (family === "vimeo") {
+    if (!VIMEO_HOSTS.has(host)) return null;
+    const id = extractVimeoId(parsed);
+    if (id) {
+      return `https://vimeo.com/${id}`;
+    }
+    return null;
   }
-  // Allow other public Vimeo paths (channels/showcase) only if host is vimeo — require id for safety
-  return null;
+
+  // x / twitter
+  if (!X_HOSTS.has(host)) return null;
+  const id = extractXStatusId(parsed);
+  if (!id) return null;
+  return `https://x.com/i/status/${id}`;
 }
 
 // --- Back-compat aliases used by older call sites / tests ---

@@ -22,9 +22,20 @@ describe("isSupportedUrl / sourceFamily", () => {
     expect(sourceFamily("https://vimeo.com/123456789")).toBe("vimeo");
   });
 
+  it("accepts X / Twitter status URLs", () => {
+    expect(isSupportedUrl("https://x.com/user/status/1234567890123456789")).toBe(true);
+    expect(isSupportedUrl("https://twitter.com/user/status/1234567890123456789")).toBe(true);
+    expect(isSupportedUrl("https://x.com/i/status/1234567890123456789")).toBe(true);
+    expect(isSupportedUrl("https://mobile.twitter.com/i/web/status/1234567890123456789")).toBe(
+      true,
+    );
+    expect(sourceFamily("https://x.com/user/status/1234567890123456789")).toBe("x");
+  });
+
   it("rejects unsupported and invalid", () => {
     expect(isSupportedUrl("https://instagram.com/p/abc")).toBe(false);
     expect(isSupportedUrl("https://vimeo.com/")).toBe(false);
+    expect(isSupportedUrl("https://x.com/home")).toBe(false);
     expect(isSupportedUrl("https://example.com")).toBe(false);
     expect(isSupportedUrl("not a url")).toBe(false);
   });
@@ -43,14 +54,21 @@ describe("normalizeSourceUrl", () => {
     );
   });
 
+  it("normalizes twitter.com status to x.com/i/status/id", () => {
+    expect(normalizeSourceUrl("https://twitter.com/foo/status/1234567890123456789")).toBe(
+      "https://x.com/i/status/1234567890123456789",
+    );
+  });
+
   it("returns null for non-allowlisted", () => {
     expect(normalizeSourceUrl("https://example.com")).toBeNull();
   });
 });
 
 describe("YouTube back-compat", () => {
-  it("isYouTubeUrl rejects Vimeo", () => {
+  it("isYouTubeUrl rejects Vimeo and X", () => {
     expect(isYouTubeUrl("https://vimeo.com/123456789")).toBe(false);
+    expect(isYouTubeUrl("https://x.com/u/status/1234567890123456789")).toBe(false);
     expect(isYouTubeUrl("https://www.youtube.com/watch?v=dQw4w9WgXcQ")).toBe(true);
   });
 
