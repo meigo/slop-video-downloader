@@ -35,10 +35,17 @@ brew install yt-dlp ffmpeg
 
 Also install a recent Node LTS and the [Rust toolchain](https://rustup.rs/). Tauri 2 may need additional platform system libraries — see the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
 
-**v1 notes**
+**Supported sources**
 
-- **YouTube only.** Non-YouTube sources are rejected.
+- **YouTube** and **Vimeo** (public videos only).
+- Other sites are rejected with a clear message until allowlisted.
+- No login / cookies UI — private or age-gated pages will fail via yt-dlp.
+- If section download isn’t supported for a site, export may **download more of the media** before trimming.
+
+**Notes**
+
 - **yt-dlp and ffmpeg must be on `PATH`.** The app checks at startup and shows install guidance if either is missing. Binaries are not bundled in the installer.
+- Keep yt-dlp updated (`brew upgrade yt-dlp`) when a site stops working.
 
 ## Development
 
@@ -76,7 +83,7 @@ Unit tests do **not** hit live YouTube; they cover URL validation, deps parsing,
 
 1. Launch the app (`npm run tauri dev` or a built binary).
 2. Confirm yt-dlp and ffmpeg are detected (or follow the install guidance if not).
-3. Paste a **public YouTube URL** and click **Fetch**.
+3. Paste a **public YouTube or Vimeo URL** and click **Fetch**.
 4. Wait for metadata and preview (stream first; falls back to a local file if streaming fails).
 5. Set **in** and **out** on the timeline (drag handles, **Set In** / **Set Out**, or keys **I** / **O**).
 6. Optionally choose **export type** (video MP4 or audio-only M4A), max height / include audio (video only), and output folder (defaults: 1080, audio on, `~/Movies/Slop Refs`).

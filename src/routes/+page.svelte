@@ -21,7 +21,7 @@
   } from "$lib/tauri";
   import { clampRange, formatTimestamp } from "$lib/time";
   import type { AppSettings, DepsStatus, ExportKind, PreviewResult, VideoMeta } from "$lib/types";
-  import { isYouTubeUrl } from "$lib/youtube";
+  import { isSupportedUrl, UNSUPPORTED_SITE_MESSAGE } from "$lib/source";
 
   let deps = $state<DepsStatus | null>(null);
   let checkingDeps = $state(true);
@@ -29,7 +29,7 @@
   let url = $state("");
   let meta = $state<VideoMeta | null>(null);
   let preview = $state<PreviewResult | null>(null);
-  let status = $state("Paste a YouTube URL and click Fetch");
+  let status = $state("Paste a YouTube or Vimeo URL and click Fetch");
   let error = $state<string | null>(null);
   let busy = $state(false);
   let exporting = $state(false);
@@ -96,8 +96,8 @@
     error = null;
     const trimmed = url.trim();
 
-    if (!isYouTubeUrl(trimmed)) {
-      error = "Enter a valid YouTube URL";
+    if (!isSupportedUrl(trimmed)) {
+      error = UNSUPPORTED_SITE_MESSAGE;
       status = "Idle";
       return;
     }

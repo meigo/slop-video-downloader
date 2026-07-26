@@ -3,6 +3,7 @@ mod deps;
 mod export;
 pub mod filename;
 mod settings;
+pub mod source;
 pub mod youtube;
 mod ytdlp;
 

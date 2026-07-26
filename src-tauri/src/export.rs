@@ -84,24 +84,46 @@ pub fn section_download_args(
     ]
 }
 
+/// Full media download (no section) when `--download-sections` fails for a site.
+pub fn full_download_args(url: &str, out_template: &str) -> Vec<String> {
+    vec![
+        "--no-playlist".into(),
+        "--newline".into(),
+        "-f".into(),
+        SECTION_FORMAT.into(),
+        "--merge-output-format".into(),
+        "mp4".into(),
+        "-o".into(),
+        out_template.into(),
+        "--".into(),
+        url.into(),
+    ]
+}
+
 /// ffmpeg args: H.264 re-encode, optional scale/audio strip, faststart.
+/// When `trim` is Some((start, end)), applies output seeking after `-i` (accurate).
 pub fn ffmpeg_transcode_args(
     input: &str,
     output: &str,
     max_height: Option<u32>,
     include_audio: bool,
+    trim: Option<(f64, f64)>,
 ) -> Vec<String> {
-    let mut args = vec![
-        "-y".into(),
-        "-i".into(),
-        input.into(),
-        "-c:v".into(),
-        "libx264".into(),
-        "-preset".into(),
-        "veryfast".into(),
-        "-crf".into(),
-        "20".into(),
-    ];
+    let mut args = vec!["-y".into(), "-i".into(), input.into()];
+
+    if let Some((start, end)) = trim {
+        args.push("-ss".into());
+        args.push(format!("{start}"));
+        args.push("-to".into());
+        args.push(format!("{end}"));
+    }
+
+    args.push("-c:v".into());
+    args.push("libx264".into());
+    args.push("-preset".into());
+    args.push("veryfast".into());
+    args.push("-crf".into());
+    args.push("20".into());
 
     if let Some(h) = max_height {
         args.push("-vf".into());
@@ -122,20 +144,28 @@ pub fn ffmpeg_transcode_args(
 }
 
 /// ffmpeg args: audio-only AAC in `.m4a` from a **local** media file.
-pub fn ffmpeg_audio_extract_args(input: &str, output: &str) -> Vec<String> {
-    vec![
-        "-y".into(),
-        "-i".into(),
-        input.into(),
-        "-vn".into(),
-        "-map".into(),
-        "0:a:0?".into(),
-        "-c:a".into(),
-        "aac".into(),
-        "-b:a".into(),
-        "192k".into(),
-        output.into(),
-    ]
+/// When `trim` is Some((start, end)), applies output seeking after `-i`.
+pub fn ffmpeg_audio_extract_args(
+    input: &str,
+    output: &str,
+    trim: Option<(f64, f64)>,
+) -> Vec<String> {
+    let mut args = vec!["-y".into(), "-i".into(), input.into()];
+    if let Some((start, end)) = trim {
+        args.push("-ss".into());
+        args.push(format!("{start}"));
+        args.push("-to".into());
+        args.push(format!("{end}"));
+    }
+    args.push("-vn".into());
+    args.push("-map".into());
+    args.push("0:a:0?".into());
+    args.push("-c:a".into());
+    args.push("aac".into());
+    args.push("-b:a".into());
+    args.push("192k".into());
+    args.push(output.into());
+    args
 }
 
 fn assert_local_media(path: &Path) -> Result<(), String> {
@@ -212,8 +242,8 @@ fn unique_output_path(path: PathBuf) -> PathBuf {
     }
 }
 
-fn find_raw_file(work_dir: &Path) -> Result<PathBuf, String> {
-    let preferred_mp4 = work_dir.join("raw.mp4");
+fn find_media_file(work_dir: &Path, stem_prefix: &str) -> Result<PathBuf, String> {
+    let preferred_mp4 = work_dir.join(format!("{stem_prefix}.mp4"));
     if preferred_mp4.is_file() {
         assert_local_media(&preferred_mp4)?;
         return Ok(preferred_mp4);
@@ -234,7 +264,7 @@ fn find_raw_file(work_dir: &Path) -> Result<PathBuf, String> {
         {
             continue;
         }
-        if name.starts_with("raw.") && path.is_file() {
+        if name.starts_with(&format!("{stem_prefix}.")) && path.is_file() {
             candidates.push(path);
         }
     }
@@ -244,13 +274,22 @@ fn find_raw_file(work_dir: &Path) -> Result<PathBuf, String> {
         assert_local_media(&path)?;
         return Ok(path);
     }
-    Err("Section download succeeded but raw file not found".to_string())
+    Err(format!(
+        "Download succeeded but media file not found ({stem_prefix}.*)"
+    ))
+}
+
+fn run_ytdlp(args: Vec<String>) -> Result<std::process::Output, String> {
+    Command::new("yt-dlp")
+        .args(args)
+        .output()
+        .map_err(|e| format!("Failed to run yt-dlp: {e}"))
 }
 
 #[tauri::command]
 pub async fn export_clip(app: AppHandle, opts: ExportOpts) -> Result<ExportResult, String> {
-    let url = crate::youtube::normalize_youtube_url(&opts.url)
-        .ok_or_else(|| "YouTube only in v1".to_string())?;
+    let url = crate::source::normalize_source_url(&opts.url)
+        .ok_or_else(|| crate::source::UNSUPPORTED_SITE_MESSAGE.to_string())?;
 
     if opts.end_secs <= opts.start_secs {
         return Err("end_secs must be greater than start_secs".to_string());
@@ -271,12 +310,10 @@ pub async fn export_clip(app: AppHandle, opts: ExportOpts) -> Result<ExportResul
     std::fs::create_dir_all(&work_dir)
         .map_err(|e| format!("Failed to create temp dir: {e}"))?;
 
-    let out_template = work_dir
-        .join("raw.%(ext)s")
-        .to_string_lossy()
-        .into_owned();
+    let start = opts.start_secs;
+    let end = opts.end_secs;
 
-    // --- download (local section file for both video and audio exports) ---
+    // --- 1) Try section download ---
     emit_progress(
         &app,
         "download",
@@ -288,37 +325,92 @@ pub async fn export_clip(app: AppHandle, opts: ExportOpts) -> Result<ExportResul
         Some(0.0),
     );
 
-    let url_dl = url.clone();
-    let start = opts.start_secs;
-    let end = opts.end_secs;
-    let template = out_template.clone();
-    let dl_output = tauri::async_runtime::spawn_blocking(move || {
-        Command::new("yt-dlp")
-            .args(section_download_args(&url_dl, start, end, &template))
-            .output()
-    })
-    .await
-    .map_err(|e| e.to_string())?
-    .map_err(|e| format!("Failed to run yt-dlp: {e}"))?;
+    let section_template = work_dir
+        .join("raw.%(ext)s")
+        .to_string_lossy()
+        .into_owned();
+    let url_section = url.clone();
+    let section_args = section_download_args(&url_section, start, end, &section_template);
+    let section_output = tauri::async_runtime::spawn_blocking(move || run_ytdlp(section_args))
+        .await
+        .map_err(|e| e.to_string())??;
 
-    if !dl_output.status.success() {
-        let _ = std::fs::remove_dir_all(&work_dir);
-        return Err(truncate_err(&String::from_utf8_lossy(&dl_output.stderr)));
+    let mut needs_trim = true;
+    let mut raw_path: Option<PathBuf> = None;
+    let mut section_err: Option<String> = None;
+
+    if section_output.status.success() {
+        match find_media_file(&work_dir, "raw") {
+            Ok(p) => {
+                raw_path = Some(p);
+                needs_trim = false;
+            }
+            Err(e) => {
+                section_err = Some(e);
+            }
+        }
+    } else {
+        section_err = Some(truncate_err(&String::from_utf8_lossy(
+            &section_output.stderr,
+        )));
     }
 
-    let raw_path = match find_raw_file(&work_dir) {
-        Ok(p) => p,
-        Err(e) => {
+    // --- 2) Full download + ffmpeg trim when section path fails ---
+    if needs_trim {
+        emit_progress(
+            &app,
+            "download",
+            "Section download unavailable — downloading full media (then trim)…",
+            Some(15.0),
+        );
+        let full_template = work_dir
+            .join("raw_full.%(ext)s")
+            .to_string_lossy()
+            .into_owned();
+        let url_full = url.clone();
+        let full_args = full_download_args(&url_full, &full_template);
+        let full_output = tauri::async_runtime::spawn_blocking(move || run_ytdlp(full_args))
+            .await
+            .map_err(|e| e.to_string())??;
+
+        if !full_output.status.success() {
             let _ = std::fs::remove_dir_all(&work_dir);
-            return Err(e);
+            let mut msg = truncate_err(&String::from_utf8_lossy(&full_output.stderr));
+            if let Some(se) = section_err {
+                if !se.is_empty() && se != "command failed with no error output" {
+                    msg = format!("{se} | full download: {msg}");
+                }
+            }
+            return Err(msg);
         }
-    };
+
+        match find_media_file(&work_dir, "raw_full") {
+            Ok(p) => {
+                raw_path = Some(p);
+            }
+            Err(e) => {
+                let _ = std::fs::remove_dir_all(&work_dir);
+                return Err(e);
+            }
+        }
+    }
+
+    let raw_path = raw_path.ok_or_else(|| {
+        let _ = std::fs::remove_dir_all(&work_dir);
+        "Download produced no media file".to_string()
+    })?;
 
     // --- encode (never pass http(s) URLs into ffmpeg) ---
     emit_progress(
         &app,
         "transcode",
-        if audio_only {
+        if needs_trim {
+            if audio_only {
+                "Trimming and extracting AAC audio…"
+            } else {
+                "Trimming and transcoding to H.264/AAC…"
+            }
+        } else if audio_only {
             "Extracting AAC audio…"
         } else {
             "Transcoding to H.264/AAC…"
@@ -337,11 +429,17 @@ pub async fn export_clip(app: AppHandle, opts: ExportOpts) -> Result<ExportResul
     let output = final_path.to_string_lossy().into_owned();
     let max_height = opts.max_height;
     let include_audio = opts.include_audio;
+    let trim = if needs_trim {
+        Some((start, end))
+    } else {
+        None
+    };
+
     let ff_output = tauri::async_runtime::spawn_blocking(move || {
         let args = if audio_only {
-            ffmpeg_audio_extract_args(&input, &output)
+            ffmpeg_audio_extract_args(&input, &output, trim)
         } else {
-            ffmpeg_transcode_args(&input, &output, max_height, include_audio)
+            ffmpeg_transcode_args(&input, &output, max_height, include_audio, trim)
         };
         Command::new("ffmpeg").args(args).output()
     })
@@ -355,13 +453,14 @@ pub async fn export_clip(app: AppHandle, opts: ExportOpts) -> Result<ExportResul
         let mut msg = truncate_err(&String::from_utf8_lossy(&ff_output.stderr));
         if msg.contains("403") || msg.contains("Forbidden") {
             msg.push_str(
-                " — tip: update yt-dlp (`brew upgrade yt-dlp`) if YouTube blocks the download.",
+                " — tip: update yt-dlp (`brew upgrade yt-dlp`) if the site blocks the download.",
             );
         }
         return Err(msg);
     }
 
     if !final_path.is_file() {
+        let _ = std::fs::remove_dir_all(&work_dir);
         return Err("ffmpeg completed but output file not found".to_string());
     }
 
@@ -395,8 +494,23 @@ mod tests {
     }
 
     #[test]
+    fn full_download_args_no_sections() {
+        let args = full_download_args(
+            "https://vimeo.com/123456789",
+            "/tmp/raw_full.%(ext)s",
+        );
+        assert!(!args.iter().any(|a| a.contains("download-sections")));
+        assert!(args.contains(&SECTION_FORMAT.to_string()));
+        assert!(args.contains(&"--merge-output-format".to_string()));
+        assert_eq!(
+            args.last().map(String::as_str),
+            Some("https://vimeo.com/123456789")
+        );
+    }
+
+    #[test]
     fn ffmpeg_scales_and_strips_audio() {
-        let args = ffmpeg_transcode_args("/tmp/in.mp4", "/tmp/out.mp4", Some(720), false);
+        let args = ffmpeg_transcode_args("/tmp/in.mp4", "/tmp/out.mp4", Some(720), false, None);
         assert!(args.iter().any(|a| a.contains("scale=")));
         assert!(args.iter().any(|a| a == "-an"));
         assert!(args.contains(&"libx264".to_string()));
@@ -406,7 +520,7 @@ mod tests {
 
     #[test]
     fn ffmpeg_with_audio_no_scale() {
-        let args = ffmpeg_transcode_args("/tmp/in.mp4", "/tmp/out.mp4", None, true);
+        let args = ffmpeg_transcode_args("/tmp/in.mp4", "/tmp/out.mp4", None, true, None);
         assert!(!args.iter().any(|a| a.contains("scale=")));
         assert!(args.contains(&"-c:a".to_string()));
         assert!(args.contains(&"aac".to_string()));
@@ -414,8 +528,17 @@ mod tests {
     }
 
     #[test]
+    fn ffmpeg_trim_includes_ss_to() {
+        let args =
+            ffmpeg_transcode_args("/tmp/in.mp4", "/tmp/out.mp4", None, true, Some((10.0, 25.0)));
+        assert!(args.contains(&"-ss".to_string()));
+        assert!(args.contains(&"10".to_string()) || args.iter().any(|a| a.starts_with("10")));
+        assert!(args.contains(&"-to".to_string()));
+    }
+
+    #[test]
     fn ffmpeg_audio_only_extract() {
-        let args = ffmpeg_audio_extract_args("/tmp/in.mp4", "/tmp/out.m4a");
+        let args = ffmpeg_audio_extract_args("/tmp/in.mp4", "/tmp/out.m4a", None);
         assert!(args.contains(&"-vn".to_string()));
         assert!(args.contains(&"aac".to_string()));
         assert!(args.contains(&"192k".to_string()));
@@ -424,3 +547,4 @@ mod tests {
         assert_eq!(args.last().map(String::as_str), Some("/tmp/out.m4a"));
     }
 }
+

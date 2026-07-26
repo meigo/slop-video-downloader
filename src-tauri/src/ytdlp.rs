@@ -103,17 +103,14 @@ fn preview_temp_dir() -> PathBuf {
     std::env::temp_dir().join("slop-video-downloader")
 }
 
-fn video_id_from_normalized(url: &str) -> Option<&str> {
-    url.strip_prefix("https://www.youtube.com/watch?v=")
-}
-
-fn find_preview_file(temp_dir: &Path, video_id: &str) -> Result<String, String> {
-    let preferred = temp_dir.join(format!("{video_id}_preview.mp4"));
+/// Find `{job_id}_preview.*` written by yt-dlp (job_id is a uuid, not site id).
+fn find_preview_file(temp_dir: &Path, job_id: &str) -> Result<String, String> {
+    let preferred = temp_dir.join(format!("{job_id}_preview.mp4"));
     if preferred.is_file() {
         return Ok(preferred.to_string_lossy().into_owned());
     }
 
-    let prefix = format!("{video_id}_preview.");
+    let prefix = format!("{job_id}_preview.");
     let entries = std::fs::read_dir(temp_dir)
         .map_err(|e| format!("Failed to read temp dir: {e}"))?;
     for entry in entries.flatten() {
@@ -124,7 +121,7 @@ fn find_preview_file(temp_dir: &Path, video_id: &str) -> Result<String, String> 
         }
     }
     Err(format!(
-        "Preview download succeeded but file not found for id {video_id}"
+        "Preview download succeeded but file not found for job {job_id}"
     ))
 }
 
@@ -165,8 +162,8 @@ pub fn parse_metadata_json(stdout: &[u8]) -> Result<VideoMeta, String> {
 
 #[tauri::command]
 pub async fn fetch_metadata(url: String) -> Result<VideoMeta, String> {
-    let url = crate::youtube::normalize_youtube_url(&url)
-        .ok_or_else(|| "YouTube only in v1".to_string())?;
+    let url = crate::source::normalize_source_url(&url)
+        .ok_or_else(|| crate::source::UNSUPPORTED_SITE_MESSAGE.to_string())?;
 
     let output = tauri::async_runtime::spawn_blocking(move || {
         Command::new("yt-dlp")
@@ -189,8 +186,8 @@ pub async fn resolve_preview(
     url: String,
     force_file: Option<bool>,
 ) -> Result<PreviewResult, String> {
-    let url = crate::youtube::normalize_youtube_url(&url)
-        .ok_or_else(|| "YouTube only in v1".to_string())?;
+    let url = crate::source::normalize_source_url(&url)
+        .ok_or_else(|| crate::source::UNSUPPORTED_SITE_MESSAGE.to_string())?;
 
     let force_file = force_file.unwrap_or(false);
 
@@ -220,12 +217,14 @@ pub async fn resolve_preview(
     }
 
     // 2) Fallback (or forced): download ≤720p preview into temp dir
+    // Unique job id so we find the file without assuming YouTube-style ids.
+    let job_id = uuid::Uuid::new_v4().to_string();
     let temp_dir = preview_temp_dir();
     std::fs::create_dir_all(&temp_dir)
         .map_err(|e| format!("Failed to create temp dir: {e}"))?;
 
     let out_template = temp_dir
-        .join("%(id)s_preview.%(ext)s")
+        .join(format!("{job_id}_preview.%(ext)s"))
         .to_string_lossy()
         .into_owned();
 
@@ -244,9 +243,7 @@ pub async fn resolve_preview(
         return Err(truncate_err(&String::from_utf8_lossy(&dl_output.stderr)));
     }
 
-    let video_id = video_id_from_normalized(&url)
-        .ok_or_else(|| "Internal error: expected normalized YouTube URL".to_string())?;
-    let path = find_preview_file(&temp_dir, video_id)?;
+    let path = find_preview_file(&temp_dir, &job_id)?;
 
     Ok(PreviewResult {
         mode: "file".into(),
