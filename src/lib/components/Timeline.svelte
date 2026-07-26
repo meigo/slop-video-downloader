@@ -2,6 +2,8 @@
   import ArrowLeftToLine from "@lucide/svelte/icons/arrow-left-to-line";
   import ArrowRightToLine from "@lucide/svelte/icons/arrow-right-to-line";
   import Repeat from "@lucide/svelte/icons/repeat";
+  import SkipBack from "@lucide/svelte/icons/skip-back";
+  import SkipForward from "@lucide/svelte/icons/skip-forward";
   import { clampRange, formatTimestamp } from "$lib/time";
 
   type DragMode = "playhead" | "in" | "out";
@@ -157,6 +159,16 @@
     }
   }
 
+  function jumpToIn() {
+    if (!(duration > 0)) return;
+    applySeek(inPoint);
+  }
+
+  function jumpToOut() {
+    if (!(duration > 0)) return;
+    applySeek(outPoint);
+  }
+
   const inPct = $derived(pct(inPoint));
   const outPct = $derived(pct(outPoint));
   const playPct = $derived(pct(currentTime));
@@ -224,16 +236,38 @@
   </div>
 
   <div class="actions">
-    <button
-      type="button"
-      class="secondary"
-      disabled={!(outPoint > inPoint)}
-      title="Loop play between in and out"
-      onclick={() => onPlaySelection?.()}
-    >
-      <Repeat size={ICON} strokeWidth={2} aria-hidden="true" />
-      <span>Play selection</span>
-    </button>
+    <div class="selection">
+      <button
+        type="button"
+        class="secondary"
+        disabled={!(duration > 0)}
+        title="Jump playhead to in point"
+        onclick={jumpToIn}
+      >
+        <SkipBack size={ICON} strokeWidth={2} aria-hidden="true" />
+        <span>To In</span>
+      </button>
+      <button
+        type="button"
+        class="secondary"
+        disabled={!(duration > 0)}
+        title="Jump playhead to out point"
+        onclick={jumpToOut}
+      >
+        <SkipForward size={ICON} strokeWidth={2} aria-hidden="true" />
+        <span>To Out</span>
+      </button>
+      <button
+        type="button"
+        class="secondary"
+        disabled={!(outPoint > inPoint)}
+        title="Loop play between in and out"
+        onclick={() => onPlaySelection?.()}
+      >
+        <Repeat size={ICON} strokeWidth={2} aria-hidden="true" />
+        <span>Play selection</span>
+      </button>
+    </div>
     <div class="markers">
       <button type="button" class="secondary" onclick={() => onSetIn?.()}>
         <ArrowLeftToLine size={ICON} strokeWidth={2} aria-hidden="true" />
@@ -406,6 +440,7 @@
     gap: 0.5rem;
   }
 
+  .selection,
   .markers {
     display: flex;
     flex-wrap: wrap;
