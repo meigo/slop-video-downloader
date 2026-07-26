@@ -156,20 +156,22 @@
 
 <div class="player">
   {#if src}
-    <!-- svelte-ignore a11y_media_has_caption -->
-    <video
-      bind:this={el}
-      src={displaySrc}
-      ontimeupdate={onTimeUpdate}
-      onloadedmetadata={onLoadedMetadata}
-      onplay={syncPlayState}
-      onpause={syncPlayState}
-      onended={syncPlayState}
-      onerror={handleError}
-      onclick={onVideoClick}
-      controls={false}
-      playsinline
-    ></video>
+    <div class="stage">
+      <!-- svelte-ignore a11y_media_has_caption -->
+      <video
+        bind:this={el}
+        src={displaySrc}
+        ontimeupdate={onTimeUpdate}
+        onloadedmetadata={onLoadedMetadata}
+        onplay={syncPlayState}
+        onpause={syncPlayState}
+        onended={syncPlayState}
+        onerror={handleError}
+        onclick={onVideoClick}
+        controls={false}
+        playsinline
+      ></video>
+    </div>
 
     <div
       class="controls"
@@ -278,16 +280,27 @@
     min-height: 240px;
     display: flex;
     flex-direction: column;
-    background: #0a0a0c;
+    /* Match app chrome — only the video stage stays black. */
+    background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 10px;
     overflow: hidden;
   }
 
+  .stage {
+    flex: 0 1 auto;
+    min-height: 180px;
+    max-height: 380px;
+    width: 100%;
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
   video {
     width: 100%;
-    flex: 1;
-    min-height: 180px;
+    height: 100%;
     max-height: 380px;
     object-fit: contain;
     background: #000;
@@ -296,12 +309,13 @@
   }
 
   .controls {
+    flex-shrink: 0;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.65rem 1rem;
     padding: 0.55rem 0.75rem;
-    background: color-mix(in srgb, var(--surface) 92%, #000);
+    background: var(--surface);
     border-top: 1px solid var(--border);
   }
 
@@ -416,5 +430,6 @@
     color: var(--muted);
     font-size: 0.9rem;
     min-height: 240px;
+    background: var(--surface);
   }
 </style>
