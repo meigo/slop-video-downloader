@@ -171,9 +171,17 @@
     outPoint = end;
   }
 
+  /**
+   * Seek playhead across the full video (0…duration).
+   * Selection in/out only affects export / Play selection — not free scrubbing.
+   * Manual seeks exit selection-loop mode so scrubbing past out is never blocked.
+   */
   function onSeek(t: number) {
-    currentTime = t;
-    player?.seek(t);
+    loopSelection = false;
+    const max = duration > 0 ? duration : t;
+    const clamped = Math.min(Math.max(0, t), max);
+    currentTime = clamped;
+    player?.seek(clamped);
   }
 
   /** Fixed skip amounts — standard for most video UIs (YouTube etc. use ~5s). */
@@ -221,15 +229,16 @@
     onSeek(outPoint);
   }
 
-  // Loop playhead between in/out while "Play selection" is active.
-  // Do not call play() if already paused — landing on out (e.g. To Out) must not auto-start.
+  // Loop only while "Play selection" is actively playing — never while paused/scrubbing.
+  // Selection range must not prevent watching or scrubbing the full video.
   $effect(() => {
     if (!loopSelection) return;
+    if (!player || player.isPaused()) return;
     if (currentTime < outPoint - 0.04) return;
-    const wasPlaying = player ? !player.isPaused() : false;
-    player?.seek(inPoint);
+    // Keep loop mode (do not go through onSeek, which clears it).
+    player.seek(inPoint);
     currentTime = inPoint;
-    if (wasPlaying) player?.play();
+    player.play();
   });
 
   function onKeyDown(event: KeyboardEvent) {

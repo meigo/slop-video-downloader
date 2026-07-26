@@ -59,8 +59,10 @@
     return ratio * duration;
   }
 
+  /** Full-timeline seek — not limited to in/out (selection is for export only). */
   function applySeek(t: number) {
-    const clamped = Math.min(Math.max(0, t), Math.max(0, duration));
+    const max = Math.max(0, duration);
+    const clamped = Math.min(Math.max(0, t), max);
     currentTime = clamped;
     onSeek?.(clamped);
   }
