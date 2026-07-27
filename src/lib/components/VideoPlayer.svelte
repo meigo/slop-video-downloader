@@ -41,7 +41,8 @@
   }: Props = $props();
 
   let el = $state<HTMLVideoElement | null>(null);
-  let seeking = false;
+  /** True while we are applying an intentional seek (ignore timeupdate briefly). */
+  let ignoreTimeUpdates = false;
   let paused = $state(true);
   let muted = $state(false);
   let videoDuration = $state(0);
@@ -66,31 +67,42 @@
     else el.pause();
   }
 
+  /**
+   * Intentional seek from parent (timeline scrub, skip, jump, loop).
+   * Do NOT mirror bindable `currentTime` into the element with an $effect —
+   * that fights timeupdate during playback and causes jump-back jitter.
+   */
   export function seek(t: number) {
     if (!el) return;
     const d = Number.isFinite(el.duration) ? el.duration : t;
-    el.currentTime = Math.min(Math.max(0, t), d);
-    currentTime = el.currentTime;
+    const clamped = Math.min(Math.max(0, t), d);
+    ignoreTimeUpdates = true;
+    el.currentTime = clamped;
+    currentTime = clamped;
+    // Clear on next frames so we don't re-apply a stale timeupdate.
+    queueMicrotask(() => {
+      ignoreTimeUpdates = false;
+    });
   }
 
   export function isPaused(): boolean {
     return el?.paused ?? true;
   }
 
-  // Parent-driven seek (timeline scrub) when currentTime changes externally.
-  $effect(() => {
-    const t = currentTime;
-    if (!el || seeking) return;
-    if (Math.abs(el.currentTime - t) > 0.05) {
-      seeking = true;
-      el.currentTime = t;
-      seeking = false;
-    }
-  });
-
   function onTimeUpdate() {
-    if (!el || seeking) return;
+    if (!el || ignoreTimeUpdates) return;
+    // Only push video → UI. Never seek the element from this path.
     currentTime = el.currentTime;
+  }
+
+  function onSeeking() {
+    ignoreTimeUpdates = true;
+  }
+
+  function onSeeked() {
+    if (!el) return;
+    currentTime = el.currentTime;
+    ignoreTimeUpdates = false;
   }
 
   function onLoadedMetadata() {
@@ -162,6 +174,8 @@
         bind:this={el}
         src={displaySrc}
         ontimeupdate={onTimeUpdate}
+        onseeking={onSeeking}
+        onseeked={onSeeked}
         onloadedmetadata={onLoadedMetadata}
         onplay={syncPlayState}
         onpause={syncPlayState}
