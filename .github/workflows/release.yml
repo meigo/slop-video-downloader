@@ -42,11 +42,22 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: 'Slop Video Downloader ${{ github.ref_name }}'
           releaseBody: |
-            macOS builds (Apple Silicon and Intel).
+            ### Which download do I need?
+
+            - **`_aarch64.dmg`** — Macs with an Apple chip (M1/M2/M3/M4, from 2020 onwards)
+            - **`_x64.dmg`** — older Macs with an Intel processor
+
+            Not sure? Apple menu → **About This Mac**: "Chip: Apple M…" means Apple Silicon,
+            "Processor: Intel…" means Intel. The `.app.tar.gz` files are the same apps
+            without an installer — most users want the `.dmg`.
+
+            ### Requirements
 
             Requires `yt-dlp` and `ffmpeg` on your PATH (`brew install yt-dlp ffmpeg`).
 
-            The app is not notarized: on first launch, right-click the app and choose Open,
+            ### First launch
+
+            The app is not notarized: right-click the app and choose Open,
             or run `xattr -cr "/Applications/Slop Video Downloader.app"`.
           releaseDraft: true
           args: --target ${{ matrix.target }}
