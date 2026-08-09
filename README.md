@@ -8,6 +8,8 @@ Paste a URL → preview in-app → set in/out on a timeline → export a trimmed
 
 **Stack:** Tauri 2 + SvelteKit + TypeScript, with **yt-dlp** and **ffmpeg** as external tools on your `PATH`.
 
+**Platforms:** macOS only for now (Apple Silicon and Intel builds on the [releases page](https://github.com/meigo/slop-video-downloader/releases)). Windows support is on the todo list — dependency detection and process spawning are currently Unix-only.
+
 ## Features
 
 - YouTube URL paste + metadata fetch
