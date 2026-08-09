@@ -1,0 +1,52 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+          - target: x86_64-apple-darwin
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Slop Video Downloader ${{ github.ref_name }}'
+          releaseBody: |
+            macOS builds (Apple Silicon and Intel).
+
+            Requires `yt-dlp` and `ffmpeg` on your PATH (`brew install yt-dlp ffmpeg`).
+
+            The app is not notarized: on first launch, right-click the app and choose Open,
+            or run `xattr -cr "/Applications/Slop Video Downloader.app"`.
+          releaseDraft: true
+          args: --target ${{ matrix.target }}
