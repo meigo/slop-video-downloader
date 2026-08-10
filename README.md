@@ -2,9 +2,11 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-Desktop app that turns a public YouTube URL into a short, browser-friendly **H.264 + AAC MP4** clip (or AAC **M4A** audio).
+Desktop app that turns a public **YouTube**, **Vimeo**, or **X (Twitter)** video URL into a short, browser-friendly **H.264 + AAC MP4** clip (or AAC **M4A** audio).
 
 Paste a URL → preview in-app → set in/out on a timeline → export a trimmed clip (default max height 1080p, audio on, save under `~/Movies/Slop Refs`).
+
+![Slop Video Downloader — URL bar, player, export panel, and timeline](docs/screenshot.png)
 
 **Stack:** Tauri 2 + SvelteKit + TypeScript, with **yt-dlp** and **ffmpeg** as external tools on your `PATH`.
 
@@ -12,9 +14,9 @@ Paste a URL → preview in-app → set in/out on a timeline → export a trimmed
 
 ## Features
 
-- YouTube URL paste + metadata fetch
-- Hybrid preview (stream first, local file fallback)
-- Timeline in/out with keyboard shortcuts
+- YouTube / Vimeo / X URL paste + metadata fetch
+- Hybrid preview (stream first, local file fallback when required)
+- Timeline in/out with drag handles, **To In** / **To Out**, **Play selection**, and keyboard shortcuts
 - Full-video play or selection loop
 - Export **video** (H.264 MP4) or **audio only** (AAC M4A)
 - Dependency check for `yt-dlp` / `ffmpeg` with install hints
@@ -90,7 +92,7 @@ Unit tests do **not** hit live YouTube; they cover URL validation, deps parsing,
 2. Confirm yt-dlp and ffmpeg are detected (or follow the install guidance if not).
 3. Paste a **YouTube, Vimeo, or X** video URL and click **Fetch**.
 4. Wait for metadata and preview (stream first; falls back to a local file if streaming fails).
-5. Set **in** and **out** on the timeline (drag handles, **Set In** / **Set Out**, or keys **I** / **O**).
+5. Set **in** and **out** on the timeline (drag handles, **Set In** / **Set Out**, or keys **I** / **O**). Use **To In** / **To Out** to jump the playhead; **Play selection** loops the range.
 6. Optionally choose **export type** (video MP4 or audio-only M4A), max height / include audio (video only), and output folder (defaults: 1080, audio on, `~/Movies/Slop Refs`).
 7. Click **Export clip** / **Export audio**. Watch progress; on success the file is revealed in Finder (macOS) / equivalent opener elsewhere.
 
@@ -114,7 +116,7 @@ Skip steps are fixed seconds (not a fraction of duration) so short reference cli
 ```
 src/                 Svelte UI (URL bar, player, timeline, export panel)
 src-tauri/           Rust commands (deps, metadata, preview, export, settings)
-docs/superpowers/    Design spec and implementation plan
+docs/                Screenshot and design notes (superpowers/)
 ```
 
 ## License
