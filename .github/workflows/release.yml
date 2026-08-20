@@ -38,6 +38,9 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Ad-hoc signature: seals the .app bundle so macOS stops calling it
+          # "damaged". Not a Developer ID, so Gatekeeper still needs a bypass.
+          APPLE_SIGNING_IDENTITY: '-'
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'Slop Video Downloader ${{ github.ref_name }}'
@@ -57,7 +60,14 @@ jobs:
 
             ### First launch
 
-            The app is not notarized: right-click the app and choose Open,
-            or run `xattr -cr "/Applications/Slop Video Downloader.app"`.
+            The app is not signed with an Apple Developer ID, so macOS blocks it
+            the first time. Drag it to Applications, then either:
+
+            - run `xattr -cr "/Applications/Slop Video Downloader.app"` in Terminal
+              and open it normally, or
+            - try to open it once, then go to **System Settings → Privacy & Security**
+              and click **Open Anyway**.
+
+            Right-click → Open does not work for unsigned apps.
           releaseDraft: true
           args: --target ${{ matrix.target }}

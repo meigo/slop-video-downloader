@@ -12,6 +12,8 @@ Paste a URL → preview in-app → set in/out on a timeline → export a trimmed
 
 **Platforms:** macOS only for now (Apple Silicon and Intel builds on the [releases page](https://github.com/meigo/slop-video-downloader/releases)). Windows support is on the todo list — dependency detection and process spawning are currently Unix-only.
 
+The builds are not signed with an Apple Developer ID, so macOS blocks the first launch. After dragging the app to Applications, run `xattr -cr "/Applications/Slop Video Downloader.app"` in Terminal, or open it once and click **Open Anyway** in **System Settings → Privacy & Security**. Right-click → Open does not work for unsigned apps.
+
 ## Features
 
 - YouTube / Vimeo / X URL paste + metadata fetch
