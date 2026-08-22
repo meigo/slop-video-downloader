@@ -10,7 +10,9 @@ Paste a URL → preview in-app → set in/out on a timeline → export a trimmed
 
 **Stack:** Tauri 2 + SvelteKit + TypeScript, with **yt-dlp** and **ffmpeg** as external tools on your `PATH`.
 
-**Platforms:** macOS only for now (Apple Silicon and Intel builds on the [releases page](https://github.com/meigo/slop-video-downloader/releases)). Windows support is on the todo list — dependency detection and process spawning are currently Unix-only.
+**Platforms:** macOS (Apple Silicon and Intel) and Windows (64-bit) — see the
+[releases page](https://github.com/meigo/slop-video-downloader/releases). Windows builds are
+produced by CI but have not been exercised by the author; please report anything broken.
 
 The builds are not signed with an Apple Developer ID, so macOS blocks the first launch. After dragging the app to Applications, run `xattr -cr "/Applications/Slop Video Downloader.app"` in Terminal, or open it once and click **Open Anyway** in **System Settings → Privacy & Security**. Right-click → Open does not work for unsigned apps.
 
@@ -38,6 +40,15 @@ On macOS with Homebrew:
 ```bash
 brew install yt-dlp ffmpeg
 ```
+
+On Windows:
+
+```
+winget install yt-dlp.yt-dlp
+winget install Gyan.FFmpeg
+```
+
+The installer is unsigned, so SmartScreen may warn — choose **More info → Run anyway**.
 
 Also install a recent Node LTS and the [Rust toolchain](https://rustup.rs/). Tauri 2 may need additional platform system libraries — see the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
 
