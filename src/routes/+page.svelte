@@ -74,8 +74,8 @@
         ffmpeg_path: null,
         ytdlp_version: null,
         ytdlp_stale: false,
-        install_hint: "brew install yt-dlp ffmpeg",
-        upgrade_hint: "brew upgrade yt-dlp",
+        install_hint: "install yt-dlp and ffmpeg",
+        upgrade_hint: "update yt-dlp",
       };
       error = e instanceof Error ? e.message : String(e);
     } finally {

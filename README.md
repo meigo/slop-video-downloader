@@ -10,9 +10,10 @@ Paste a URL → preview in-app → set in/out on a timeline → export a trimmed
 
 **Stack:** Tauri 2 + SvelteKit + TypeScript, with **yt-dlp** and **ffmpeg** as external tools on your `PATH`.
 
-**Platforms:** macOS (Apple Silicon and Intel) and Windows (64-bit) — see the
-[releases page](https://github.com/meigo/slop-video-downloader/releases). Windows builds are
-produced by CI but have not been exercised by the author; please report anything broken.
+**Platforms:** macOS (Apple Silicon and Intel) and Windows (64-bit). The
+[releases page](https://github.com/meigo/slop-video-downloader/releases) currently lists a
+macOS-only release; Windows builds are produced by CI but have not been exercised by the
+author, so they will land as a published release once verified — please report anything broken.
 
 The builds are not signed with an Apple Developer ID, so macOS blocks the first launch. After dragging the app to Applications, run `xattr -cr "/Applications/Slop Video Downloader.app"` in Terminal, or open it once and click **Open Anyway** in **System Settings → Privacy & Security**. Right-click → Open does not work for unsigned apps.
 
@@ -56,7 +57,7 @@ Also install a recent Node LTS and the [Rust toolchain](https://rustup.rs/). Tau
 
 - **YouTube**, **Vimeo**, and **X (Twitter)** posts that contain video.
 - Other sites are rejected until allowlisted.
-- **Vimeo** and **X** use Chrome cookies (`--cookies-from-browser chrome`): log into the site in Chrome, open the video/post, then Fetch. Allow Keychain access if macOS prompts.
+- **Vimeo** and **X** use Chrome cookies (`--cookies-from-browser chrome`): log into the site in Chrome, open the video/post, then Fetch. On macOS, allow Keychain access if prompted. On Windows, Chrome cookie import is broken (Chrome 127+ app-bound encryption) — log into the site in Firefox instead.
 - Text-only / image-only X posts fail (no video stream).
 - If section download isn’t supported for a site, export may **download more of the media** before trimming.
 

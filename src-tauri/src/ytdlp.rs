@@ -204,7 +204,9 @@ pub fn format_ytdlp_error(stderr: &str) -> String {
         return "Vimeo needs a logged-in browser session. \
 Open Chrome, log into vimeo.com, then try again.\n\n\
 This app reads cookies from Chrome (`yt-dlp --cookies-from-browser chrome`). \
-macOS may ask to unlock the Keychain — choose Allow.".to_string();
+On macOS, allow Keychain access if prompted.\n\n\
+On Windows, Chrome cookie import is broken (Chrome 127+ app-bound encryption) — \
+log into vimeo.com in Firefox instead.".to_string();
     }
 
     // X / Twitter: guest token / auth failures
@@ -220,7 +222,9 @@ macOS may ask to unlock the Keychain — choose Allow.".to_string();
         return "X (Twitter) needs a logged-in Chrome session and a post that actually contains video.\n\n\
 1. Open Chrome and log into x.com\n\
 2. Open the post and confirm the video plays\n\
-3. Retry Fetch (allow Keychain access if prompted)\n\n\
+3. Retry Fetch (on macOS, allow Keychain access if prompted)\n\n\
+On Windows, Chrome cookie import is broken (Chrome 127+ app-bound encryption) — \
+log into x.com in Firefox instead.\n\n\
 Text-only or image-only posts will fail (no video stream).".to_string();
     }
 
@@ -228,8 +232,8 @@ Text-only or image-only posts will fail (no video stream).".to_string();
         || lower.contains("failed to load cookies")
         || (lower.contains("cookies-from-browser") && lower.contains("error"))
     {
-        return "Could not read browser cookies. Install Chrome, log into the site there, \
-then allow Keychain access if macOS prompts.".to_string();
+        return "Could not read browser cookies. Install Chrome, log into the site there; \
+on macOS, allow Keychain access if prompted.".to_string();
     }
 
     if lower.contains("impersonat")
@@ -237,7 +241,7 @@ then allow Keychain access if macOS prompts.".to_string();
     {
         return "yt-dlp needs browser impersonation for this site. \
 Install curl_cffi support, e.g. pipx install \"yt-dlp[default,curl-cffi]\" \
-or use the official yt-dlp_macos binary.".to_string();
+or use the official platform-specific yt-dlp binary.".to_string();
     }
 
     if trimmed.chars().count() <= STDERR_TRUNCATE {

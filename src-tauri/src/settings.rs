@@ -53,40 +53,13 @@ pub fn default_save_dir() -> String {
     base.join("Slop Refs").to_string_lossy().into()
 }
 
-/// Reveal `path` in the system file manager (Finder on macOS).
+/// Reveal `path` in the system file manager (Finder on macOS, Explorer on
+/// Windows). Delegates to `tauri-plugin-opener`, which selects the file
+/// itself rather than shelling out to a platform-specific binary with
+/// hand-rolled argv quoting.
 #[tauri::command]
 pub fn reveal_in_folder(path: String) -> Result<(), String> {
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .args(["-R", &path])
-            .status()
-            .map_err(|e| e.to_string())?;
-        return Ok(());
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        std::process::Command::new("explorer")
-            .args(["/select,", &path])
-            .status()
-            .map_err(|e| e.to_string())?;
-        return Ok(());
-    }
-
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    {
-        use std::path::Path;
-        let parent = Path::new(&path)
-            .parent()
-            .map(|p| p.to_path_buf())
-            .unwrap_or_else(|| Path::new(".").to_path_buf());
-        std::process::Command::new("xdg-open")
-            .arg(&parent)
-            .status()
-            .map_err(|e| e.to_string())?;
-        Ok(())
-    }
+    tauri_plugin_opener::reveal_item_in_dir(&path).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

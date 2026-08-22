@@ -441,10 +441,10 @@ pub async fn export_clip(app: AppHandle, opts: ExportOpts) -> Result<ExportResul
     let input = raw_path.to_string_lossy().into_owned();
     if input.starts_with("http://") || input.starts_with("https://") {
         let _ = std::fs::remove_dir_all(&work_dir);
-        return Err(
-            "Download produced a stream URL instead of a local file; try updating yt-dlp (`brew upgrade yt-dlp`) and retry."
-                .into(),
-        );
+        return Err(format!(
+            "Download produced a stream URL instead of a local file; try updating yt-dlp (`{}`) and retry.",
+            crate::deps::upgrade_hint()
+        ));
     }
     let output = final_path.to_string_lossy().into_owned();
     let max_height = opts.max_height;
@@ -472,9 +472,10 @@ pub async fn export_clip(app: AppHandle, opts: ExportOpts) -> Result<ExportResul
         let _ = std::fs::remove_dir_all(&work_dir);
         let mut msg = truncate_err(&String::from_utf8_lossy(&ff_output.stderr));
         if msg.contains("403") || msg.contains("Forbidden") {
-            msg.push_str(
-                " — tip: update yt-dlp (`brew upgrade yt-dlp`) if the site blocks the download.",
-            );
+            msg.push_str(&format!(
+                " — tip: update yt-dlp (`{}`) if the site blocks the download.",
+                crate::deps::upgrade_hint()
+            ));
         }
         return Err(msg);
     }
