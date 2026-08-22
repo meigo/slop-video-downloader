@@ -58,6 +58,16 @@ jobs:
 
             Requires `yt-dlp` and `ffmpeg` on your PATH (`brew install yt-dlp ffmpeg`).
 
+            **Keep yt-dlp current.** YouTube breaks older builds regularly, and when it
+            does the app fails to download even though it looks fine otherwise. If a video
+            errors out, update first:
+
+            ```
+            brew upgrade yt-dlp
+            ```
+
+            The app warns you when its yt-dlp is more than two months old.
+
             ### First launch
 
             The app is not signed with an Apple Developer ID, so macOS blocks it
