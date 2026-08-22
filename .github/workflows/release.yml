@@ -126,6 +126,12 @@ jobs:
 
       - run: npm ci
 
+      # tauri-action only builds and bundles — it never runs tests. Without this
+      # step the #[cfg(windows)] assertions would never execute anywhere.
+      # --lib skips doc-tests, which cost ~3 minutes of link time and cover nothing.
+      - name: Run unit tests
+        run: cargo test --lib --manifest-path src-tauri/Cargo.toml
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
