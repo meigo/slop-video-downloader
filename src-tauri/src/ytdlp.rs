@@ -205,8 +205,8 @@ pub fn format_ytdlp_error(stderr: &str) -> String {
 Open Chrome, log into vimeo.com, then try again.\n\n\
 This app reads cookies from Chrome (`yt-dlp --cookies-from-browser chrome`). \
 On macOS, allow Keychain access if prompted.\n\n\
-On Windows, Chrome cookie import is broken (Chrome 127+ app-bound encryption) — \
-log into vimeo.com in Firefox instead.".to_string();
+On Windows, Chrome cookie import is broken (Chrome 127+ app-bound encryption), \
+so Vimeo is not currently usable on Windows in this app. YouTube is unaffected.".to_string();
     }
 
     // X / Twitter: guest token / auth failures
@@ -223,8 +223,8 @@ log into vimeo.com in Firefox instead.".to_string();
 1. Open Chrome and log into x.com\n\
 2. Open the post and confirm the video plays\n\
 3. Retry Fetch (on macOS, allow Keychain access if prompted)\n\n\
-On Windows, Chrome cookie import is broken (Chrome 127+ app-bound encryption) — \
-log into x.com in Firefox instead.\n\n\
+On Windows, Chrome cookie import is broken (Chrome 127+ app-bound encryption), \
+so X is not currently usable on Windows in this app. YouTube is unaffected.\n\n\
 Text-only or image-only posts will fail (no video stream).".to_string();
     }
 

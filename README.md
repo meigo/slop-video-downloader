@@ -57,7 +57,7 @@ Also install a recent Node LTS and the [Rust toolchain](https://rustup.rs/). Tau
 
 - **YouTube**, **Vimeo**, and **X (Twitter)** posts that contain video.
 - Other sites are rejected until allowlisted.
-- **Vimeo** and **X** use Chrome cookies (`--cookies-from-browser chrome`): log into the site in Chrome, open the video/post, then Fetch. On macOS, allow Keychain access if prompted. On Windows, Chrome cookie import is broken (Chrome 127+ app-bound encryption) — log into the site in Firefox instead.
+- **Vimeo** and **X** use Chrome cookies (`--cookies-from-browser chrome`): log into the site in Chrome, open the video/post, then Fetch. On macOS, allow Keychain access if prompted. On Windows, Chrome cookie import is broken (Chrome 127+ app-bound encryption), so Vimeo and X are not currently usable on Windows in this app.
 - Text-only / image-only X posts fail (no video stream).
 - If section download isn’t supported for a site, export may **download more of the media** before trimming.
 
