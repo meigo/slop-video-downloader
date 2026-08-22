@@ -5,6 +5,8 @@ export type DepsStatus = {
   ffmpeg_path: string | null;
   ytdlp_version: string | null;
   ytdlp_stale: boolean;
+  install_hint: string;
+  upgrade_hint: string;
 };
 
 export type VideoMeta = {

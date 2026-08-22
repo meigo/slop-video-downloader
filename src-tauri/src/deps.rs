@@ -12,6 +12,10 @@ pub struct DepsStatus {
     pub ytdlp_version: Option<String>,
     /// Old enough that YouTube has likely outgrown it — see `YTDLP_STALE_DAYS`.
     pub ytdlp_stale: bool,
+    /// Platform-correct install command, e.g. `brew install yt-dlp ffmpeg`.
+    pub install_hint: String,
+    /// Platform-correct yt-dlp update command, e.g. `brew upgrade yt-dlp`.
+    pub upgrade_hint: String,
 }
 
 /// yt-dlp ships roughly monthly and YouTube breaks older builds regularly
@@ -78,6 +82,30 @@ fn which(bin: &str) -> Option<String> {
     first_path_line(&output.stdout)
 }
 
+/// Command that installs both tools on this platform.
+pub fn install_hint() -> &'static str {
+    #[cfg(windows)]
+    {
+        "winget install yt-dlp.yt-dlp Gyan.FFmpeg"
+    }
+    #[cfg(not(windows))]
+    {
+        "brew install yt-dlp ffmpeg"
+    }
+}
+
+/// Command that updates yt-dlp on this platform.
+pub fn upgrade_hint() -> &'static str {
+    #[cfg(windows)]
+    {
+        "winget upgrade yt-dlp.yt-dlp"
+    }
+    #[cfg(not(windows))]
+    {
+        "brew upgrade yt-dlp"
+    }
+}
+
 #[tauri::command]
 pub fn check_deps() -> DepsStatus {
     let ytdlp_path = which("yt-dlp");
@@ -94,6 +122,8 @@ pub fn check_deps() -> DepsStatus {
         ffmpeg_path,
         ytdlp_version: ytdlp_version.map(str::to_string),
         ytdlp_stale,
+        install_hint: install_hint().to_string(),
+        upgrade_hint: upgrade_hint().to_string(),
     }
 }
 
@@ -235,6 +265,23 @@ mod tests {
             }
         }
         panic!("day {days} outside test range")
+    }
+
+    #[test]
+    fn hints_name_this_platform_package_manager() {
+        #[cfg(target_os = "macos")]
+        {
+            assert!(install_hint().contains("brew install"));
+            assert!(upgrade_hint().contains("brew upgrade"));
+        }
+        #[cfg(windows)]
+        {
+            assert!(install_hint().contains("winget install"));
+            assert!(upgrade_hint().contains("winget upgrade"));
+        }
+        // Both must name yt-dlp on every platform.
+        assert!(install_hint().contains("yt-dlp"));
+        assert!(upgrade_hint().contains("yt-dlp"));
     }
 
 }

@@ -30,7 +30,7 @@
 
     <pre class="hint">
       <Terminal size={16} strokeWidth={2} class="hint-icon" aria-hidden="true" />
-      <code>brew install yt-dlp ffmpeg</code>
+      <code>{deps.install_hint}</code>
     </pre>
 
     <ul class="tools">

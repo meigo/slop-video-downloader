@@ -74,6 +74,8 @@
         ffmpeg_path: null,
         ytdlp_version: null,
         ytdlp_stale: false,
+        install_hint: "brew install yt-dlp ffmpeg",
+        upgrade_hint: "brew upgrade yt-dlp",
       };
       error = e instanceof Error ? e.message : String(e);
     } finally {
@@ -408,7 +410,7 @@
           <TriangleAlert size={15} strokeWidth={2} aria-hidden="true" />
           <span>
             yt-dlp {deps.ytdlp_version} is over two months old — YouTube regularly breaks
-            older builds. Update with <code>brew upgrade yt-dlp</code>.
+            older builds. Update with <code>{deps.upgrade_hint}</code>.
           </span>
         </p>
       {/if}
