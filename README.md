@@ -10,10 +10,10 @@ Paste a URL → preview in-app → set in/out on a timeline → export a trimmed
 
 **Stack:** Tauri 2 + SvelteKit + TypeScript, with **yt-dlp** and **ffmpeg** as external tools on your `PATH`.
 
-**Platforms:** macOS (Apple Silicon and Intel) and Windows (64-bit). The
-[releases page](https://github.com/meigo/slop-video-downloader/releases) currently lists a
-macOS-only release; Windows builds are produced by CI but have not been exercised by the
-author, so they will land as a published release once verified — please report anything broken.
+**Platforms:** macOS (Apple Silicon and Intel) and Windows (64-bit), both on the
+[releases page](https://github.com/meigo/slop-video-downloader/releases). The Windows builds
+are produced by CI and pass their tests there, but have not been exercised by the author on
+a real Windows machine — please report anything broken.
 
 The builds are not signed with an Apple Developer ID, so macOS blocks the first launch. After dragging the app to Applications, run `xattr -cr "/Applications/Slop Video Downloader.app"` in Terminal, or open it once and click **Open Anyway** in **System Settings → Privacy & Security**. Right-click → Open does not work for unsigned apps.
 
