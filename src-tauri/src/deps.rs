@@ -52,18 +52,30 @@ pub fn ytdlp_is_stale(version: Option<&str>, today: i64) -> bool {
     }
 }
 
+/// First line of stdout from a path lookup, trimmed. `where` prints every
+/// match, so only the first is meaningful.
+fn first_path_line(stdout: &[u8]) -> Option<String> {
+    let text = String::from_utf8_lossy(stdout);
+    let line = text.lines().next()?.trim();
+    if line.is_empty() {
+        None
+    } else {
+        Some(line.to_string())
+    }
+}
+
+/// Locate `bin` on PATH. Windows has no `which`; the equivalent is `where`.
 fn which(bin: &str) -> Option<String> {
-    // Prefer `which` on macOS/Linux
-    let output = crate::proc::command("which").arg(bin).output().ok()?;
+    #[cfg(windows)]
+    let lookup = "where";
+    #[cfg(not(windows))]
+    let lookup = "which";
+
+    let output = crate::proc::command(lookup).arg(bin).output().ok()?;
     if !output.status.success() {
         return None;
     }
-    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if path.is_empty() {
-        None
-    } else {
-        Some(path)
-    }
+    first_path_line(&output.stdout)
 }
 
 #[tauri::command]
@@ -88,8 +100,10 @@ pub fn check_deps() -> DepsStatus {
 /// Dirs a GUI launch cannot see: launchd hands apps a bare
 /// `/usr/bin:/bin:/usr/sbin:/sbin`, so Homebrew, MacPorts and pipx
 /// installs are invisible unless we put them back.
+#[cfg(unix)]
 const TOOL_DIRS: [&str; 3] = ["/opt/homebrew/bin", "/usr/local/bin", "/opt/local/bin"];
 
+#[cfg(unix)]
 fn augmented_path(current: &str, home: Option<&str>) -> String {
     let mut dirs: Vec<String> = TOOL_DIRS.iter().map(|d| d.to_string()).collect();
     if let Some(home) = home {
@@ -103,16 +117,43 @@ fn augmented_path(current: &str, home: Option<&str>) -> String {
 }
 
 /// Must run before any tool is spawned: `Command` inherits this process's PATH.
+#[cfg(unix)]
 pub fn ensure_tool_path() {
     let current = std::env::var("PATH").unwrap_or_default();
     let home = std::env::var("HOME").ok();
     std::env::set_var("PATH", augmented_path(&current, home.as_deref()));
 }
 
+/// Windows installers put tools on the machine PATH already, and the Unix
+/// well-known directories do not exist there.
+#[cfg(not(unix))]
+pub fn ensure_tool_path() {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    #[test]
+    fn first_path_line_takes_one_result() {
+        // `where` prints every match, one per line; `which` prints one.
+        let many = b"C:\\tools\\yt-dlp.exe\r\nC:\\other\\yt-dlp.exe\r\n";
+        assert_eq!(
+            first_path_line(many).as_deref(),
+            Some("C:\\tools\\yt-dlp.exe")
+        );
+        assert_eq!(
+            first_path_line(b"/opt/homebrew/bin/yt-dlp\n").as_deref(),
+            Some("/opt/homebrew/bin/yt-dlp")
+        );
+    }
+
+    #[test]
+    fn first_path_line_rejects_empty_output() {
+        assert_eq!(first_path_line(b""), None);
+        assert_eq!(first_path_line(b"   \n"), None);
+    }
+
+    #[cfg(unix)]
     #[test]
     fn prepends_tool_dirs_to_launchd_default() {
         let path = augmented_path("/usr/bin:/bin:/usr/sbin:/sbin", None);
@@ -120,12 +161,14 @@ mod tests {
         assert!(path.ends_with("/usr/bin:/bin:/usr/sbin:/sbin"));
     }
 
+    #[cfg(unix)]
     #[test]
     fn includes_user_local_bin_when_home_known() {
         let path = augmented_path("/usr/bin", Some("/Users/someone"));
         assert!(path.contains("/Users/someone/.local/bin"));
     }
 
+    #[cfg(unix)]
     #[test]
     fn keeps_existing_entries_once() {
         let path = augmented_path("/opt/homebrew/bin:/usr/bin", None);
