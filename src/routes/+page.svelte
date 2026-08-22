@@ -3,6 +3,7 @@
   import { onDestroy, onMount } from "svelte";
   import Film from "@lucide/svelte/icons/film";
   import LoaderCircle from "@lucide/svelte/icons/loader-circle";
+  import TriangleAlert from "@lucide/svelte/icons/triangle-alert";
   import ExportPanel from "$lib/components/ExportPanel.svelte";
   import MissingDeps from "$lib/components/MissingDeps.svelte";
   import StatusLine from "$lib/components/StatusLine.svelte";
@@ -66,7 +67,14 @@
     try {
       deps = await checkDeps();
     } catch (e) {
-      deps = { ytdlp: false, ffmpeg: false, ytdlp_path: null, ffmpeg_path: null };
+      deps = {
+        ytdlp: false,
+        ffmpeg: false,
+        ytdlp_path: null,
+        ffmpeg_path: null,
+        ytdlp_version: null,
+        ytdlp_stale: false,
+      };
       error = e instanceof Error ? e.message : String(e);
     } finally {
       checkingDeps = false;
@@ -395,6 +403,15 @@
 {:else}
   <div class="app">
     <header class="top">
+      {#if deps?.ytdlp_stale}
+        <p class="stale">
+          <TriangleAlert size={15} strokeWidth={2} aria-hidden="true" />
+          <span>
+            yt-dlp {deps.ytdlp_version} is over two months old — YouTube regularly breaks
+            older builds. Update with <code>brew upgrade yt-dlp</code>.
+          </span>
+        </p>
+      {/if}
       <UrlBar bind:url {busy} onFetch={onFetch} />
       <StatusLine
         {status}
@@ -490,6 +507,30 @@
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+  }
+
+  .stale {
+    margin: 0;
+    padding: 0.5rem 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--danger);
+    border-radius: 8px;
+    color: var(--muted);
+    font-size: 0.875rem;
+  }
+
+  .stale :global(svg) {
+    flex-shrink: 0;
+    color: var(--danger);
+  }
+
+  .stale code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--text);
   }
 
   .main {

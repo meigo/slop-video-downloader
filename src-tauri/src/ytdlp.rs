@@ -45,7 +45,7 @@ pub fn needs_client_pin(version: Option<&str>) -> bool {
 }
 
 /// `yt-dlp --version`, resolved once per process.
-fn installed_ytdlp_version() -> Option<&'static str> {
+pub(crate) fn installed_ytdlp_version() -> Option<&'static str> {
     static VERSION: OnceLock<Option<String>> = OnceLock::new();
     VERSION
         .get_or_init(|| {

@@ -3,6 +3,8 @@ export type DepsStatus = {
   ffmpeg: boolean;
   ytdlp_path: string | null;
   ffmpeg_path: string | null;
+  ytdlp_version: string | null;
+  ytdlp_stale: boolean;
 };
 
 export type VideoMeta = {
