@@ -4,7 +4,6 @@ use crate::source::SourceFamily;
 use serde::Serialize;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::sync::OnceLock;
 
 const STDERR_TRUNCATE: usize = 500;
@@ -49,7 +48,7 @@ pub(crate) fn installed_ytdlp_version() -> Option<&'static str> {
     static VERSION: OnceLock<Option<String>> = OnceLock::new();
     VERSION
         .get_or_init(|| {
-            let out = Command::new("yt-dlp").arg("--version").output().ok()?;
+            let out = crate::proc::command("yt-dlp").arg("--version").output().ok()?;
             if !out.status.success() {
                 return None;
             }
@@ -335,7 +334,7 @@ pub async fn fetch_metadata(url: String) -> Result<VideoMeta, String> {
         .ok_or_else(|| crate::source::UNSUPPORTED_SITE_MESSAGE.to_string())?;
 
     let output = tauri::async_runtime::spawn_blocking(move || {
-        Command::new("yt-dlp")
+        crate::proc::command("yt-dlp")
             .args(metadata_args(&url))
             .output()
     })
@@ -373,7 +372,7 @@ pub async fn resolve_preview(
     if !force_file {
         let url_for_stream = url.clone();
         let stream_output = tauri::async_runtime::spawn_blocking(move || {
-            Command::new("yt-dlp")
+            crate::proc::command("yt-dlp")
                 .args(stream_url_args(&url_for_stream, pin))
                 .output()
         })
@@ -416,7 +415,7 @@ pub async fn resolve_preview(
     let url_for_dl = url.clone();
     let template = out_template.clone();
     let dl_output = tauri::async_runtime::spawn_blocking(move || {
-        Command::new("yt-dlp")
+        crate::proc::command("yt-dlp")
             .args(preview_download_args(&url_for_dl, &template, pin))
             .output()
     })

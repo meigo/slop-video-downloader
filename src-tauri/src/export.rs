@@ -3,7 +3,6 @@
 use crate::filename::build_clip_filename;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use tauri::{AppHandle, Emitter};
 
 const STDERR_TRUNCATE: usize = 500;
@@ -299,7 +298,7 @@ fn find_media_file(work_dir: &Path, stem_prefix: &str) -> Result<PathBuf, String
 }
 
 fn run_ytdlp(args: Vec<String>) -> Result<std::process::Output, String> {
-    Command::new("yt-dlp")
+    crate::proc::command("yt-dlp")
         .args(args)
         .output()
         .map_err(|e| format!("Failed to run yt-dlp: {e}"))
@@ -462,7 +461,7 @@ pub async fn export_clip(app: AppHandle, opts: ExportOpts) -> Result<ExportResul
         } else {
             ffmpeg_transcode_args(&input, &output, max_height, include_audio, trim)
         };
-        Command::new("ffmpeg").args(args).output()
+        crate::proc::command("ffmpeg").args(args).output()
     })
     .await
     .map_err(|e| e.to_string())?

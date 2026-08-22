@@ -1,6 +1,7 @@
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 mod deps;
 mod export;
+mod proc;
 pub mod filename;
 mod settings;
 pub mod source;

@@ -1,7 +1,6 @@
 //! External tool detection (`yt-dlp`, `ffmpeg`) via PATH `which`.
 
 use serde::Serialize;
-use std::process::Command;
 
 #[derive(Debug, Serialize)]
 pub struct DepsStatus {
@@ -55,7 +54,7 @@ pub fn ytdlp_is_stale(version: Option<&str>, today: i64) -> bool {
 
 fn which(bin: &str) -> Option<String> {
     // Prefer `which` on macOS/Linux
-    let output = Command::new("which").arg(bin).output().ok()?;
+    let output = crate::proc::command("which").arg(bin).output().ok()?;
     if !output.status.success() {
         return None;
     }
