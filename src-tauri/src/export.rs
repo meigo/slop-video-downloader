@@ -63,9 +63,10 @@ pub fn section_download_args(
     start_secs: f64,
     end_secs: f64,
     out_template: &str,
+    pin: bool,
 ) -> Vec<String> {
     let section = format!("*{start_secs}-{end_secs}");
-    crate::ytdlp::with_site_args(
+    crate::ytdlp::with_media_args(
         url,
         vec![
             "--no-playlist".into(),
@@ -84,12 +85,13 @@ pub fn section_download_args(
             "--".into(),
             url.into(),
         ],
+        pin,
     )
 }
 
 /// Full media download (no section) when `--download-sections` fails for a site.
-pub fn full_download_args(url: &str, out_template: &str) -> Vec<String> {
-    crate::ytdlp::with_site_args(
+pub fn full_download_args(url: &str, out_template: &str, pin: bool) -> Vec<String> {
+    crate::ytdlp::with_media_args(
         url,
         vec![
             "--no-playlist".into(),
@@ -103,6 +105,7 @@ pub fn full_download_args(url: &str, out_template: &str) -> Vec<String> {
             "--".into(),
             url.into(),
         ],
+        pin,
     )
 }
 
@@ -329,6 +332,8 @@ pub async fn export_clip(app: AppHandle, opts: ExportOpts) -> Result<ExportResul
     let start = opts.start_secs;
     let end = opts.end_secs;
 
+    let pin = crate::ytdlp::client_pin_required();
+
     // --- 1) Try section download ---
     emit_progress(
         &app,
@@ -346,7 +351,7 @@ pub async fn export_clip(app: AppHandle, opts: ExportOpts) -> Result<ExportResul
         .to_string_lossy()
         .into_owned();
     let url_section = url.clone();
-    let section_args = section_download_args(&url_section, start, end, &section_template);
+    let section_args = section_download_args(&url_section, start, end, &section_template, pin);
     let section_output = tauri::async_runtime::spawn_blocking(move || run_ytdlp(section_args))
         .await
         .map_err(|e| e.to_string())??;
@@ -384,7 +389,7 @@ pub async fn export_clip(app: AppHandle, opts: ExportOpts) -> Result<ExportResul
             .to_string_lossy()
             .into_owned();
         let url_full = url.clone();
-        let full_args = full_download_args(&url_full, &full_template);
+        let full_args = full_download_args(&url_full, &full_template, pin);
         let full_output = tauri::async_runtime::spawn_blocking(move || run_ytdlp(full_args))
             .await
             .map_err(|e| e.to_string())??;
@@ -499,6 +504,7 @@ mod tests {
             72.0,
             105.0,
             "/tmp/raw.%(ext)s",
+            true,
         );
         assert!(args.iter().any(|a| a.contains("--download-sections")));
         assert!(args.iter().any(|a| a == "*72-105" || a.contains("*72")));
@@ -510,10 +516,20 @@ mod tests {
     }
 
     #[test]
+    fn section_args_pin_only_when_requested() {
+        let u = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+        let pinned = section_download_args(u, 1.0, 2.0, "/tmp/raw.%(ext)s", true);
+        assert!(pinned.contains(&"--extractor-args".to_string()));
+        let unpinned = section_download_args(u, 1.0, 2.0, "/tmp/raw.%(ext)s", false);
+        assert!(!unpinned.contains(&"--extractor-args".to_string()));
+    }
+
+    #[test]
     fn full_download_args_no_sections() {
         let args = full_download_args(
             "https://vimeo.com/123456789",
             "/tmp/raw_full.%(ext)s",
+            true,
         );
         assert!(!args.iter().any(|a| a.contains("download-sections")));
         assert!(args.contains(&SECTION_FORMAT.to_string()));

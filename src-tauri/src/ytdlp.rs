@@ -5,11 +5,63 @@ use serde::Serialize;
 use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::OnceLock;
 
 const STDERR_TRUNCATE: usize = 500;
-const PREVIEW_NOTE_FILE: &str = "Stream preview unavailable — using local preview file.";
 const STREAM_FORMAT: &str = "b[ext=mp4]/best[ext=mp4]/best";
 const PREVIEW_DL_FORMAT: &str = "bv*[height<=720]+ba/b[height<=720]/best[height<=720]/best";
+
+/// YouTube began rejecting yt-dlp's `android_vr` client on 2026-08-17: its
+/// googlevideo URLs answer 403 without a GVS PO token, breaking preview *and*
+/// export. `web_embedded` still serves the full ladder (to 1080p) untokenised.
+/// https://github.com/yt-dlp/yt-dlp/issues/17348
+const YT_PLAYER_CLIENT: &str = "youtube:player_client=web_embedded";
+
+/// yt-dlp dropped `android_vr` from its defaults on 2026-08-18. Builds from this
+/// release onwards pick a working client themselves and must not be overridden —
+/// their choice is better (format 616 vs 399). Only older builds need the pin.
+const YT_CLIENT_FIX_VERSION: (u32, u32, u32) = (2026, 8, 19);
+
+/// Parse a yt-dlp version: `2026.07.04` or nightly `2026.08.20.234504`.
+/// Only the leading year.month.day is significant.
+pub fn parse_ytdlp_version(raw: &str) -> Option<(u32, u32, u32)> {
+    let mut parts = raw.trim().split('.');
+    let y = parts.next()?.parse().ok()?;
+    let m = parts.next()?.parse().ok()?;
+    let d = parts.next()?.parse().ok()?;
+    Some((y, m, d))
+}
+
+/// Whether this yt-dlp still defaults to the broken client and needs the pin.
+///
+/// An absent or unparseable version pins: the override costs a slightly worse
+/// format on fixed builds but is the difference between working and 403 on
+/// broken ones, so erring toward pinning is the safe direction.
+pub fn needs_client_pin(version: Option<&str>) -> bool {
+    match version.and_then(parse_ytdlp_version) {
+        Some(v) => v < YT_CLIENT_FIX_VERSION,
+        None => true,
+    }
+}
+
+/// `yt-dlp --version`, resolved once per process.
+fn installed_ytdlp_version() -> Option<&'static str> {
+    static VERSION: OnceLock<Option<String>> = OnceLock::new();
+    VERSION
+        .get_or_init(|| {
+            let out = Command::new("yt-dlp").arg("--version").output().ok()?;
+            if !out.status.success() {
+                return None;
+            }
+            Some(String::from_utf8_lossy(&out.stdout).trim().to_string())
+        })
+        .as_deref()
+}
+
+/// Does the yt-dlp on this machine need the YouTube client pin?
+pub fn client_pin_required() -> bool {
+    needs_client_pin(installed_ytdlp_version())
+}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct VideoMeta {
@@ -44,20 +96,40 @@ pub fn ytdlp_site_args(url: &str) -> Vec<String> {
     }
 }
 
-/// Insert site-specific args immediately before the trailing `--` URL separator.
-pub fn with_site_args(url: &str, mut args: Vec<String>) -> Vec<String> {
-    let site = ytdlp_site_args(url);
-    if site.is_empty() {
+/// Extra flags for commands that fetch **media** (stream URLs, downloads).
+/// Metadata (`-J`) still succeeds on the default client, so it is left alone.
+pub fn ytdlp_media_args(url: &str, pin: bool) -> Vec<String> {
+    match crate::source::source_family(url) {
+        Some(SourceFamily::Youtube) if pin => {
+            vec!["--extractor-args".into(), YT_PLAYER_CLIENT.into()]
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// Insert `extra` immediately before the trailing `--` URL separator.
+fn insert_before_url_sep(mut args: Vec<String>, extra: Vec<String>) -> Vec<String> {
+    if extra.is_empty() {
         return args;
     }
     if let Some(pos) = args.iter().position(|a| a == "--") {
-        for (i, a) in site.into_iter().enumerate() {
+        for (i, a) in extra.into_iter().enumerate() {
             args.insert(pos + i, a);
         }
     } else {
-        args.extend(site);
+        args.extend(extra);
     }
     args
+}
+
+/// Insert site-specific args immediately before the trailing `--` URL separator.
+pub fn with_site_args(url: &str, args: Vec<String>) -> Vec<String> {
+    insert_before_url_sep(args, ytdlp_site_args(url))
+}
+
+/// Site args plus the media-only client override (when `pin` is set).
+pub fn with_media_args(url: &str, args: Vec<String>, pin: bool) -> Vec<String> {
+    with_site_args(url, insert_before_url_sep(args, ytdlp_media_args(url, pin)))
 }
 
 /// CLI args for `yt-dlp` metadata dump (`-J` = dump single JSON).
@@ -74,8 +146,8 @@ pub fn metadata_args(url: &str) -> Vec<String> {
 }
 
 /// CLI args for progressive stream URL discovery (`-g` = get URL only).
-pub fn stream_url_args(url: &str) -> Vec<String> {
-    with_site_args(
+pub fn stream_url_args(url: &str, pin: bool) -> Vec<String> {
+    with_media_args(
         url,
         vec![
             "-g".into(),
@@ -85,12 +157,13 @@ pub fn stream_url_args(url: &str) -> Vec<String> {
             "--".into(),
             url.into(),
         ],
+        pin,
     )
 }
 
 /// CLI args for ≤720p preview download to an output template.
-pub fn preview_download_args(url: &str, out_template: &str) -> Vec<String> {
-    with_site_args(
+pub fn preview_download_args(url: &str, out_template: &str, pin: bool) -> Vec<String> {
+    with_media_args(
         url,
         vec![
             "-f".into(),
@@ -103,6 +176,7 @@ pub fn preview_download_args(url: &str, out_template: &str) -> Vec<String> {
             "--".into(),
             url.into(),
         ],
+        pin,
     )
 }
 
@@ -276,13 +350,11 @@ pub async fn fetch_metadata(url: String) -> Result<VideoMeta, String> {
     parse_metadata_json(&output.stdout)
 }
 
-/// X/Vimeo CDN stream URLs usually need cookies/headers the webview cannot send.
-/// Always download a local merged file for those families.
+/// Every supported site now needs a locally downloaded preview:
+/// X/Vimeo CDN URLs need cookies/headers the webview cannot send, and YouTube's
+/// progressive `-g` URLs answer 403 without a PO token (see `YT_PLAYER_CLIENT`).
 fn prefer_file_preview(url: &str) -> bool {
-    matches!(
-        crate::source::source_family(url),
-        Some(SourceFamily::X) | Some(SourceFamily::Vimeo)
-    )
+    crate::source::source_family(url).is_some()
 }
 
 #[tauri::command]
@@ -294,6 +366,7 @@ pub async fn resolve_preview(
         .ok_or_else(|| crate::source::UNSUPPORTED_SITE_MESSAGE.to_string())?;
 
     let force_file = force_file.unwrap_or(false) || prefer_file_preview(&url);
+    let pin = client_pin_required();
 
     // 1) Try progressive single-URL stream via yt-dlp -g (YouTube mainly).
     // Skip for X/Vimeo: bare CDN URLs play as black/0:00 in the webview.
@@ -301,7 +374,7 @@ pub async fn resolve_preview(
         let url_for_stream = url.clone();
         let stream_output = tauri::async_runtime::spawn_blocking(move || {
             Command::new("yt-dlp")
-                .args(stream_url_args(&url_for_stream))
+                .args(stream_url_args(&url_for_stream, pin))
                 .output()
         })
         .await
@@ -344,7 +417,7 @@ pub async fn resolve_preview(
     let template = out_template.clone();
     let dl_output = tauri::async_runtime::spawn_blocking(move || {
         Command::new("yt-dlp")
-            .args(preview_download_args(&url_for_dl, &template))
+            .args(preview_download_args(&url_for_dl, &template, pin))
             .output()
     })
     .await
@@ -357,11 +430,7 @@ pub async fn resolve_preview(
 
     let path = find_preview_file(&temp_dir, &job_id)?;
 
-    let note = if prefer_file_preview(&url) {
-        Some("Using local preview (required for this site).".into())
-    } else {
-        Some(PREVIEW_NOTE_FILE.into())
-    };
+    let note = Some("Using local preview (required for this site).".into());
 
     Ok(PreviewResult {
         mode: "file".into(),
@@ -388,13 +457,13 @@ mod tests {
 
     #[test]
     fn stream_args_include_g() {
-        assert!(stream_url_args("https://www.youtube.com/watch?v=x").contains(&"-g".into()));
+        assert!(stream_url_args("https://www.youtube.com/watch?v=x", true).contains(&"-g".into()));
     }
 
     #[test]
     fn stream_args_shape() {
         let url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
-        let a = stream_url_args(url);
+        let a = stream_url_args(url, true);
         assert_eq!(a[0], "-g");
         assert!(a.contains(&"-f".to_string()));
         assert!(a.contains(&STREAM_FORMAT.to_string()));
@@ -407,7 +476,7 @@ mod tests {
     fn preview_download_args_shape() {
         let url = "https://www.youtube.com/watch?v=x";
         let tmpl = "/tmp/slop/%(id)s_preview.%(ext)s";
-        let a = preview_download_args(url, tmpl);
+        let a = preview_download_args(url, tmpl, true);
         assert!(a.contains(&"-f".to_string()));
         assert!(a.contains(&PREVIEW_DL_FORMAT.to_string()));
         assert!(a.contains(&"--no-playlist".to_string()));
@@ -485,9 +554,6 @@ mod tests {
     fn x_prefers_file_preview() {
         assert!(prefer_file_preview("https://x.com/i/status/1234567890123456789"));
         assert!(prefer_file_preview("https://vimeo.com/123456789"));
-        assert!(!prefer_file_preview(
-            "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-        ));
     }
 
     #[test]
@@ -496,4 +562,75 @@ mod tests {
         assert!(a.contains(&"--cookies-from-browser".to_string()));
         assert!(a.contains(&"chrome".to_string()));
     }
+
+    #[test]
+    fn youtube_preview_download_forces_working_client() {
+        let a = preview_download_args("https://www.youtube.com/watch?v=dQw4w9WgXcQ", "/tmp/x.%(ext)s", true);
+        assert!(a.contains(&"--extractor-args".to_string()));
+        assert!(a.contains(&YT_PLAYER_CLIENT.to_string()));
+        // Client args must precede the `--` URL separator.
+        let sep = a.iter().position(|x| x == "--").unwrap();
+        let ea = a.iter().position(|x| x == "--extractor-args").unwrap();
+        assert!(ea < sep);
+    }
+
+    #[test]
+    fn youtube_metadata_args_keep_default_client() {
+        // Metadata still works on the default client; don't risk a regression there.
+        let a = metadata_args("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+        assert!(!a.contains(&"--extractor-args".to_string()));
+    }
+
+    #[test]
+    fn non_youtube_media_args_unchanged() {
+        let a = preview_download_args("https://vimeo.com/184782959", "/tmp/x.%(ext)s", true);
+        assert!(!a.contains(&"--extractor-args".to_string()));
+    }
+
+    #[test]
+    fn youtube_prefers_file_preview_now() {
+        // Progressive `-g` URLs 403 without a PO token, so preview must be a local file.
+        assert!(prefer_file_preview(
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        ));
+    }
+
+
+    #[test]
+    fn parses_stable_and_nightly_versions() {
+        assert_eq!(parse_ytdlp_version("2026.07.04"), Some((2026, 7, 4)));
+        assert_eq!(parse_ytdlp_version("2026.08.20.234504"), Some((2026, 8, 20)));
+        assert_eq!(parse_ytdlp_version("  2026.08.19\n"), Some((2026, 8, 19)));
+        assert_eq!(parse_ytdlp_version("not-a-version"), None);
+    }
+
+    #[test]
+    fn pin_only_for_builds_before_the_upstream_fix() {
+        // Homebrew stable at the time of the breakage — still defaults to android_vr.
+        assert!(needs_client_pin(Some("2026.07.04")));
+        assert!(needs_client_pin(Some("2026.08.18")));
+        // The release that dropped android_vr, and anything newer, picks its own client.
+        assert!(!needs_client_pin(Some("2026.08.19")));
+        assert!(!needs_client_pin(Some("2026.08.20.234504")));
+        assert!(!needs_client_pin(Some("2027.01.01")));
+    }
+
+    #[test]
+    fn unknown_version_pins() {
+        // Pinning costs a slightly worse format on fixed builds but is the
+        // difference between working and 403 on broken ones.
+        assert!(needs_client_pin(None));
+        assert!(needs_client_pin(Some("")));
+        assert!(needs_client_pin(Some("garbage")));
+    }
+
+    #[test]
+    fn unpinned_youtube_args_carry_no_override() {
+        let a = preview_download_args("https://www.youtube.com/watch?v=dQw4w9WgXcQ", "/tmp/x.%(ext)s", false);
+        assert!(!a.contains(&"--extractor-args".to_string()));
+        // Everything else is unchanged.
+        assert!(a.contains(&PREVIEW_DL_FORMAT.to_string()));
+        assert_eq!(a.last().map(String::as_str), Some("https://www.youtube.com/watch?v=dQw4w9WgXcQ"));
+    }
+
 }
