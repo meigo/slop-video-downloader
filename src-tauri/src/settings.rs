@@ -48,12 +48,9 @@ pub fn save_settings(app: AppHandle, settings: AppSettings) -> Result<(), String
 
 #[tauri::command]
 pub fn default_save_dir() -> String {
-    // ~/Movies/Slop Refs
-    let home = dirs::home_dir().unwrap_or_default();
-    home.join("Movies")
-        .join("Slop Refs")
-        .to_string_lossy()
-        .into()
+    // ~/Movies/Slop Refs on macOS, %USERPROFILE%\Videos\Slop Refs on Windows.
+    let base = dirs::video_dir().unwrap_or_else(|| dirs::home_dir().unwrap_or_default());
+    base.join("Slop Refs").to_string_lossy().into()
 }
 
 /// Reveal `path` in the system file manager (Finder on macOS).
@@ -102,5 +99,19 @@ mod tests {
         assert_eq!(s.max_height, Some(1080));
         assert!(s.include_audio);
         assert_eq!(s.last_save_dir, None);
+    }
+
+    #[test]
+    fn default_save_dir_is_absolute_and_named() {
+        let d = default_save_dir();
+        assert!(!d.is_empty(), "save dir must not be empty");
+        assert!(
+            std::path::Path::new(&d).is_absolute(),
+            "save dir must be absolute, got {d}"
+        );
+        assert!(d.ends_with("Slop Refs"), "save dir must end in Slop Refs, got {d}");
+        // The macOS-only "Movies" literal must not be hardcoded any more.
+        #[cfg(windows)]
+        assert!(!d.contains("Movies"), "Windows must not use a Movies folder");
     }
 }
