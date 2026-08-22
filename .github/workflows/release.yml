@@ -4,19 +4,110 @@ on:
   push:
     tags:
       - 'v*'
+  # Build-only smoke test: no tag, no release, nothing uploaded.
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
+  create-release:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create.outputs.result }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify versions match the tag
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          for entry in \
+            "src-tauri/tauri.conf.json:$(jq -r .version src-tauri/tauri.conf.json)" \
+            "package.json:$(jq -r .version package.json)" \
+            "src-tauri/Cargo.toml:$(grep -m1 '^version = ' src-tauri/Cargo.toml | cut -d'"' -f2)"
+          do
+            if [ "${entry#*:}" != "$tag" ]; then
+              echo "::error::${entry%%:*} is at version ${entry#*:}, but the tag is $GITHUB_REF_NAME"
+              exit 1
+            fi
+          done
+
+      - uses: actions/github-script@v9
+        id: create
+        env:
+          RELEASE_BODY: |
+            ### Which download do I need?
+
+            **macOS**
+
+            - **`_aarch64.dmg`** — Macs with an Apple chip (M1/M2/M3/M4, from 2020 onwards)
+            - **`_x64.dmg`** — older Macs with an Intel processor
+
+            Not sure? Apple menu → **About This Mac**: "Chip: Apple M…" means Apple Silicon,
+            "Processor: Intel…" means Intel. The `.app.tar.gz` files are the same apps
+            without an installer — most users want the `.dmg`.
+
+            **Windows** (64-bit)
+
+            - **`_x64-setup.exe`** — the installer most people want
+            - **`_x64_en-US.msi`** — the same app, for managed or scripted installs
+
+            ### Requirements
+
+            Requires `yt-dlp` and `ffmpeg` on your PATH:
+
+            - macOS — `brew install yt-dlp ffmpeg`
+            - Windows — `winget install yt-dlp.yt-dlp` and `winget install Gyan.FFmpeg`
+
+            **Keep yt-dlp current.** YouTube breaks older builds regularly, and when it
+            does the app fails to download even though it looks fine otherwise. If a video
+            errors out, update first:
+
+            - macOS — `brew upgrade yt-dlp`
+            - Windows — `winget upgrade yt-dlp.yt-dlp`
+
+            The app warns you when its yt-dlp is more than two months old.
+
+            ### First launch
+
+            **macOS** — the app is not signed with an Apple Developer ID, so macOS blocks it
+            the first time. Drag it to Applications, then either:
+
+            - run `xattr -cr "/Applications/Slop Video Downloader.app"` in Terminal
+              and open it normally, or
+            - try to open it once, then go to **System Settings → Privacy & Security**
+              and click **Open Anyway**.
+
+            Right-click → Open does not work for unsigned apps.
+
+            **Windows** — the installer is not signed: SmartScreen may warn,
+            choose **More info → Run anyway**.
+        with:
+          result-encoding: string
+          script: |
+            const { data } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: process.env.GITHUB_REF_NAME,
+              name: `Slop Video Downloader ${process.env.GITHUB_REF_NAME}`,
+              body: process.env.RELEASE_BODY,
+              draft: true,
+            });
+            return data.id;
+
   build:
+    needs: create-release
+    # create-release is skipped on workflow_dispatch; still build then.
+    if: ${{ !cancelled() && needs.create-release.result != 'failure' }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - target: aarch64-apple-darwin
-          - target: x86_64-apple-darwin
-    runs-on: macos-latest
+          - { os: macos-latest, target: aarch64-apple-darwin }
+          - { os: macos-latest, target: x86_64-apple-darwin }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc }
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -40,44 +131,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Ad-hoc signature: seals the .app bundle so macOS stops calling it
           # "damaged". Not a Developer ID, so Gatekeeper still needs a bypass.
+          # No effect on Windows.
           APPLE_SIGNING_IDENTITY: '-'
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'Slop Video Downloader ${{ github.ref_name }}'
-          releaseBody: |
-            ### Which download do I need?
-
-            - **`_aarch64.dmg`** — Macs with an Apple chip (M1/M2/M3/M4, from 2020 onwards)
-            - **`_x64.dmg`** — older Macs with an Intel processor
-
-            Not sure? Apple menu → **About This Mac**: "Chip: Apple M…" means Apple Silicon,
-            "Processor: Intel…" means Intel. The `.app.tar.gz` files are the same apps
-            without an installer — most users want the `.dmg`.
-
-            ### Requirements
-
-            Requires `yt-dlp` and `ffmpeg` on your PATH (`brew install yt-dlp ffmpeg`).
-
-            **Keep yt-dlp current.** YouTube breaks older builds regularly, and when it
-            does the app fails to download even though it looks fine otherwise. If a video
-            errors out, update first:
-
-            ```
-            brew upgrade yt-dlp
-            ```
-
-            The app warns you when its yt-dlp is more than two months old.
-
-            ### First launch
-
-            The app is not signed with an Apple Developer ID, so macOS blocks it
-            the first time. Drag it to Applications, then either:
-
-            - run `xattr -cr "/Applications/Slop Video Downloader.app"` in Terminal
-              and open it normally, or
-            - try to open it once, then go to **System Settings → Privacy & Security**
-              and click **Open Anyway**.
-
-            Right-click → Open does not work for unsigned apps.
-          releaseDraft: true
+          releaseId: ${{ needs.create-release.outputs.release_id }}
           args: --target ${{ matrix.target }}
