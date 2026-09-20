@@ -66,6 +66,7 @@ Also install a recent Node LTS and the [Rust toolchain](https://rustup.rs/). Tau
 **Notes**
 
 - **yt-dlp and ffmpeg must be on `PATH`.** The app checks at startup and shows install guidance if either is missing. Binaries are not bundled in the installer.
+- **Not bundling ffmpeg is deliberate.** An ffmpeg build that can encode H.264 normally links libx264, which is GPL, so shipping one in this MIT-licensed installer would pull GPL obligations (and an H.264 encoder) along with it. Requiring a user-installed ffmpeg keeps that out of the picture — please keep it that way.
 - Keep yt-dlp updated when a site stops working.
 
 ## Development
@@ -132,6 +133,22 @@ src/                 Svelte UI (URL bar, player, timeline, export panel)
 src-tauri/           Rust commands (deps, metadata, preview, export, settings)
 docs/                Screenshot and design notes (superpowers/)
 ```
+
+## Copyright and usage
+
+Slop Video Downloader is a clipping tool for YouTube, Vimeo, and X. It fetches what those sites
+serve to your own session and trims it locally; it grants you no rights to the media itself.
+Whether a given video may be downloaded, and what you may do with the clip afterwards, depends on
+the copyright in the work, the licence the uploader chose, and the terms of the site you got it
+from. Publicly visible is not the same as freely reusable. That call is yours.
+
+The app accepts only YouTube, Vimeo, and X URLs and rejects everything else. yt-dlp refuses
+DRM-protected streams, and nothing here tries to work around that.
+
+**Vimeo and X use your logged-in Chrome session** (`--cookies-from-browser chrome`). Downloading
+can breach a site’s terms of service even where copyright law would permit the copy, and the usual
+consequence is losing the account you are signed into rather than a copyright claim — so decide
+whether that is a risk you want to take with that account.
 
 ## License
 
