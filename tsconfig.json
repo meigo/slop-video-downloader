@@ -9,7 +9,10 @@
     "skipLibCheck": true,
     "sourceMap": true,
     "strict": true,
-    "moduleResolution": "bundler"
+    "moduleResolution": "bundler",
+
+    /* Editor/tsserver only: lets .ts files see .svelte imports and references. tsc ignores it. */
+    "plugins": [{ "name": "typescript-svelte-plugin" }]
   }
   // Path aliases are handled by https://svelte.dev/docs/kit/configuration#alias
   // except $lib which is handled by https://svelte.dev/docs/kit/configuration#files
